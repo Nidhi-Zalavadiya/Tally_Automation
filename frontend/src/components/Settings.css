@@ -1,0 +1,18 @@
+/* ============================================================
+   Settings.css
+   ============================================================ */
+
+.settings-page { display: flex; flex-direction: column; gap: 20px; }
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+  gap: 16px;
+}
+.settings-row:last-child { border-bottom: none; }
+
+.settings-label { font-size: 13px; font-weight: 500; color: var(--text); }
+.settings-desc  { font-size: 11px; color: var(--text2); margin-top: 3px; }
