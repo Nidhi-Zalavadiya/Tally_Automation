@@ -1,0 +1,264 @@
+/* ============================================================
+   global.css — Design tokens, reset, shared utilities
+   Import this in main.jsx ONLY
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* ── Reset ──────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root {
+  height: 100%;
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* ── Dark Theme (default) ───────────────────────────────────── */
+:root,
+html.dark {
+  --bg:          #0f1117;
+  --bg2:         #161b27;
+  --bg3:         #1e2536;
+  --bg4:         #252d3d;
+
+  --border:      rgba(255, 255, 255, 0.07);
+  --border2:     rgba(255, 255, 255, 0.13);
+
+  --text:        #e4e9f2;
+  --text2:       #8b96ab;
+  --text-muted:  #525e74;
+
+  --accent:      #4f8ef7;
+  --accent-h:    #3a7cf5;
+  --accent-soft: rgba(79, 142, 247, 0.12);
+
+  --green:       #22c55e;
+  --red:         #ef4444;
+  --yellow:      #f59e0b;
+  --purple:      #a78bfa;
+  --cyan:        #06b6d4;
+
+  --success:     #22c55e;
+  --danger:      #ef4444;
+  --warning:     #f59e0b;
+
+  /* XML preview */
+  --xml-bg:      #080c14;
+  --xml-text:    #86efac;
+
+  /* Toggle button */
+  --toggle-bg:   #252d3d;
+  --toggle-icon: '☀️';
+}
+
+/* ── Light Theme ────────────────────────────────────────────── */
+html.light {
+  --bg:          #f0f2f7;
+  --bg2:         #ffffff;
+  --bg3:         #f5f7fb;
+  --bg4:         #e8ecf3;
+
+  --border:      rgba(0, 0, 0, 0.08);
+  --border2:     rgba(0, 0, 0, 0.14);
+
+  --text:        #111827;
+  --text2:       #4b5563;
+  --text-muted:  #9ca3af;
+
+  --accent:      #2563eb;
+  --accent-h:    #1d4ed8;
+  --accent-soft: rgba(37, 99, 235, 0.1);
+
+  --green:       #16a34a;
+  --red:         #dc2626;
+  --yellow:      #d97706;
+  --purple:      #7c3aed;
+  --cyan:        #0891b2;
+
+  --success:     #16a34a;
+  --danger:      #dc2626;
+  --warning:     #d97706;
+
+  /* XML preview */
+  --xml-bg:      #f0fdf4;
+  --xml-text:    #166534;
+
+  /* Toggle button */
+  --toggle-bg:   #e8ecf3;
+  --toggle-icon: '🌙';
+}
+
+/* ── Typography tokens ──────────────────────────────────────── */
+:root {
+  --font:       'Inter', sans-serif;
+  --mono:       'JetBrains Mono', monospace;
+  --radius:     8px;
+  --radius-lg:  12px;
+  --radius-xl:  16px;
+  --t:          0.17s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Scrollbars ─────────────────────────────────────────────── */
+::-webkit-scrollbar       { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ── Buttons ────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font);
+  cursor: pointer;
+  border: none;
+  transition: all var(--t);
+  white-space: nowrap;
+  text-decoration: none;
+}
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--accent-h); }
+
+.btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border2); }
+.btn-outline:hover:not(:disabled) { background: var(--bg3); border-color: var(--text2); }
+
+.btn-ghost { background: transparent; color: var(--text2); border: none; }
+.btn-ghost:hover { background: var(--bg3); color: var(--text); }
+
+.btn-danger  { background: rgba(239,68,68,0.1);  color: var(--red);   border: 1px solid rgba(239,68,68,0.2);  }
+.btn-danger:hover:not(:disabled)  { background: rgba(239,68,68,0.2); }
+
+.btn-success { background: rgba(34,197,94,0.1);  color: var(--green); border: 1px solid rgba(34,197,94,0.2);  }
+.btn-success:hover { background: rgba(34,197,94,0.2); }
+
+.btn-sm { padding: 6px 12px; font-size: 12px; }
+.btn-xs { padding: 3px 9px;  font-size: 11px; border-radius: 6px; }
+
+/* ── Badges ─────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.badge-green  { background: rgba(34,197,94,0.12);   color: var(--green);  }
+.badge-red    { background: rgba(239,68,68,0.12);   color: var(--red);    }
+.badge-yellow { background: rgba(245,158,11,0.12);  color: var(--yellow); }
+.badge-blue   { background: var(--accent-soft);     color: var(--accent); }
+.badge-purple { background: rgba(167,139,250,0.12); color: var(--purple); }
+.badge-gray   { background: var(--bg4);             color: var(--text2);  }
+
+/* ── Form Controls ──────────────────────────────────────────── */
+.form-group { margin-bottom: 14px; }
+.form-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text2);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.form-control {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 9px 11px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: var(--font);
+  outline: none;
+  transition: border-color var(--t), background var(--t);
+}
+.form-control:focus { border-color: var(--accent); }
+.form-control::placeholder { color: var(--text-muted); }
+select.form-control { cursor: pointer; }
+select.form-control option { background: var(--bg2); color: var(--text); }
+
+/* ── Alerts ─────────────────────────────────────────────────── */
+.alert {
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  font-size: 12.5px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 14px;
+  line-height: 1.5;
+}
+.alert-info    { background: rgba(79,142,247,0.08);  border: 1px solid rgba(79,142,247,0.22);  color: var(--accent); }
+.alert-success { background: rgba(34,197,94,0.08);   border: 1px solid rgba(34,197,94,0.22);   color: var(--green);  }
+.alert-error   { background: rgba(239,68,68,0.08);   border: 1px solid rgba(239,68,68,0.22);   color: var(--red);    }
+.alert-warn    { background: rgba(245,158,11,0.08);  border: 1px solid rgba(245,158,11,0.22);  color: var(--yellow); }
+
+/* ── Card ───────────────────────────────────────────────────── */
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  margin-bottom: 20px;
+  transition: background var(--t), border-color var(--t);
+}
+.card-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg2);
+}
+.card-title { font-size: 13.5px; font-weight: 700; color: var(--text); }
+.card-body  { padding: 18px; }
+
+/* ── Table ──────────────────────────────────────────────────── */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+thead tr { border-bottom: 1px solid var(--border); }
+th {
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  white-space: nowrap;
+  background: var(--bg2);
+}
+tbody tr { border-bottom: 1px solid var(--border); transition: background var(--t); }
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: var(--bg3); }
+td { padding: 11px 14px; font-size: 13px; color: var(--text); vertical-align: middle; }
+
+/* ── Empty State ────────────────────────────────────────────── */
+.empty-state { text-align: center; padding: 48px 20px; color: var(--text2); }
+.empty-state p { margin-bottom: 14px; font-size: 13px; }
+
+/* ── Utils ──────────────────────────────────────────────────── */
+.fw-600 { font-weight: 600; }
+.muted  { color: var(--text2); }
+code {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  background: var(--bg3);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--cyan);
+}
