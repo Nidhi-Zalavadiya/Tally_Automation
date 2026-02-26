@@ -2,92 +2,90 @@
    InvoiceMapping.css
    ============================================================ */
 
-.invoice-mapping {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  height: 100%;
+.invoice-mapping { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 14px; 
+  /* Change height from 100% to a viewport-based calculation */
+  height: calc(100vh - 100px); 
+  overflow-y: auto; 
+  padding-bottom: 20px; 
 }
 
-/* ── Top bar with steps + company selector ──────────────────── */
 .mapping-topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 12px 16px;
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px; padding: 12px 16px;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); flex-shrink: 0;
 }
 
-/* ── Step Indicator ─────────────────────────────────────────── */
+/* Step indicator */
 .step-indicator { display: flex; align-items: center; gap: 4px; }
-
 .step {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--text-muted);
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12.5px; font-weight: 600; color: var(--text-muted);
 }
 .step.active { color: var(--accent); }
 .step.done   { color: var(--green); }
-
 .step-num {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: var(--bg4);
-  border: 1px solid var(--border2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10.5px;
-  flex-shrink: 0;
-  font-weight: 700;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--bg4); border: 1px solid var(--border2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10.5px; flex-shrink: 0; font-weight: 700;
 }
-.step.active .step-num {
-  background: rgba(79,142,247,0.18);
-  border-color: var(--accent);
-  color: var(--accent);
-}
-.step.done .step-num {
-  background: rgba(34,197,94,0.18);
-  border-color: var(--green);
-  color: var(--green);
-}
-.step-sep { color: var(--text-muted); font-size: 14px; margin: 0 4px; line-height: 1; }
+.step.active .step-num { background: rgba(79,142,247,0.18); border-color: var(--accent); color: var(--accent); }
+.step.done   .step-num { background: rgba(34,197,94,0.18);  border-color: var(--green);  color: var(--green);  }
+.step-sep { color: var(--text-muted); font-size: 14px; margin: 0 4px; }
 
-/* ── Upload Zone ────────────────────────────────────────────── */
+/* Upload zone */
 .upload-zone {
-  border: 2px dashed var(--border2);
-  border-radius: var(--radius-xl);
-  padding: 80px 24px;
-  text-align: center;
-  cursor: pointer;
-  transition: all var(--t);
-  background: var(--bg2);
+  border: 2px dashed var(--border2); border-radius: var(--radius-xl);
+  padding: 80px 24px; text-align: center; cursor: pointer;
+  transition: all var(--t); background: var(--bg2);
+  display: flex; flex-direction: column; align-items: center; gap: 12px; flex: 1;
+}
+.upload-zone:hover { border-color: var(--accent); background: rgba(79,142,247,0.03); }
+.upload-zone h3 { font-size: 16px; font-weight: 700; }
+.upload-zone p  { font-size: 13px; color: var(--text2); }
+
+/* Invoice list toolbar */
+.inv-list-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 8px; margin-bottom: 4px;
+  font-size: 13px; color: var(--text2);
+}
+
+/* Pagination */
+.pagination {
+  display: flex; align-items: center; gap: 4px;
+  padding: 12px 16px; border-top: 1px solid var(--border);
+  flex-wrap: wrap; justify-content: center;
+}
+.pagination .btn {
+  min-width: 32px;
+}
+
+/* Ensure the card doesn't just grow forever */
+.card {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  flex: 1;
+  min-height: 0; /* Important for flex children to scroll */
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden; /* Keep the border-radius clean */
 }
-.upload-zone:hover {
-  border-color: var(--accent);
-  background: rgba(79,142,247,0.03);
+
+.table-wrap {
+  flex: 1; 
+  overflow-y: auto; /* This creates the scrollbar for the invoices only */
+  max-height: 60vh; /* Limits the table height so pagination stays visible */
 }
-.upload-zone h3 {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text);
-}
-.upload-zone p {
-  font-size: 13px;
-  color: var(--text2);
-  margin: 0;
+
+/* Optional: Keep the header at the top while scrolling */
+.table-wrap table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bg2);
+  z-index: 2;
 }

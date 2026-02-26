@@ -47,7 +47,7 @@ class MappingService:
                 json_description, 
                 tally_item_name,
                 last_sales_rate,
-                mrp
+                alt_unit
             FROM companies_productmapping
             WHERE company_id = :company_id 
             AND json_description = :json_description
@@ -65,7 +65,7 @@ class MappingService:
                 "json_description": result[2],
                 "tally_item_name": result[3],
                 "last_sales_rate": result[4],
-                "mrp": result[5]
+                "alt_unit": result[5]
             }
         
         return None
@@ -77,7 +77,7 @@ class MappingService:
         json_description: str, 
         tally_item_name: str,
         last_sales_rate: Optional[Decimal] = None,
-        mrp: Optional[Decimal] = None
+        alt_unit: Optional[str] = None
     ) -> Dict:
         """
         Save a new mapping or update existing one.
@@ -86,14 +86,14 @@ class MappingService:
         """
         query = text("""
             INSERT INTO companies_productmapping 
-                (company_id, json_description, tally_item_name, last_sales_rate, mrp, updated_at)
+                (company_id, json_description, tally_item_name, last_sales_rate, alt_unit, updated_at)
             VALUES 
-                (:company_id, :json_description, :tally_item_name, :last_sales_rate, :mrp, NOW())
+                (:company_id, :json_description, :tally_item_name, :last_sales_rate, :alt_unit, NOW())
             ON CONFLICT (company_id, json_description) 
             DO UPDATE SET
                 tally_item_name = EXCLUDED.tally_item_name,
                 last_sales_rate = EXCLUDED.last_sales_rate,
-                mrp = EXCLUDED.mrp,
+                alt_unit = EXCLUDED.alt_unit,
                 updated_at = NOW()
             RETURNING id, company_id, json_description, tally_item_name
         """)
@@ -103,7 +103,7 @@ class MappingService:
             "json_description": json_description,
             "tally_item_name": tally_item_name,
             "last_sales_rate": last_sales_rate,
-            "mrp": mrp
+            "alt_unit": alt_unit
         })
         
         self.db.commit()
@@ -129,13 +129,6 @@ class MappingService:
         2. Try fuzzy matching with similar descriptions
         3. Check if JSON description exists in Tally items
         4. Return best guess with confidence score
-        
-        Returns:
-            {
-                "suggested_item": str or None,
-                "confidence": float (0-1),
-                "source": "exact_match" | "fuzzy_match" | "tally_exact" | "none"
-            }
         """
         
         # 1. Check exact match in mapping history
@@ -172,9 +165,6 @@ class MappingService:
     def _find_fuzzy_match(self, company_id: int, json_description: str) -> Optional[Dict]:
         """
         Find similar product descriptions using fuzzy string matching.
-        
-        Uses SequenceMatcher to calculate similarity ratio.
-        Only returns if similarity > 0.75 (75%)
         """
         query = text("""
             SELECT json_description, tally_item_name
@@ -213,7 +203,7 @@ class MappingService:
                 json_description, 
                 tally_item_name, 
                 last_sales_rate, 
-                mrp
+                alt_unit
             FROM companies_productmapping
             WHERE company_id = :company_id
             ORDER BY updated_at DESC
@@ -227,7 +217,7 @@ class MappingService:
                 "json_description": row[1],
                 "tally_item_name": row[2],
                 "last_sales_rate": row[3],
-                "mrp": row[4]
+                "alt_unit": row[4]
             }
             for row in results
         ]
@@ -239,28 +229,10 @@ class MappingService:
         descriptions: List[str],
         tally_items: List[str]
     ) -> Dict[str, Dict]:
-        """
-        Get suggestions for multiple products at once.
-        
-        Useful when user uploads an invoice with 50+ items.
-        
-        Returns:
-            {
-                "Product A": {"suggested_item": "...", "confidence": 0.9, ...},
-                "Product B": {"suggested_item": None, "confidence": 0.0, ...}
-            }
-        """
+        """Get suggestions for multiple products at once."""
         suggestions = {}
         
         for desc in descriptions:
             suggestions[desc] = self.suggest_mapping(company_id, desc, tally_items)
         
         return suggestions
-
-
-# 🎓 MENTOR NOTE:
-# - We use raw SQL (text()) for better performance with PostgreSQL
-# - ON CONFLICT handles the unique_together constraint gracefully
-# - Fuzzy matching helps when product names have minor differences
-# - Confidence scores help user decide whether to trust suggestion
-# - bulk_suggest reduces DB queries for multi-item invoices

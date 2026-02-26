@@ -24,8 +24,8 @@ class ProductMapping(models.Model):
     company = models.ForeignKey(TallyCompany, on_delete=models.CASCADE, related_name='Mappings')
     json_description = models.TextField()
     tally_item_name = models.CharField(max_length=255)
+    alt_unit = models.CharField(max_length=50,null=True, blank=True)
     last_sales_rate = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
-    mrp = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
     updated_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:

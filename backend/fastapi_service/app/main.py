@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from .api import tally_routs, invoice_routs, mapping_routs, voucher_routs
+from .api import tally_routs, invoice_routs, mapping_routs, voucher_routs,auth_routs,companies_routs
 
 # Create FastAPI app
 app = FastAPI(
@@ -84,10 +84,13 @@ async def health_check():
 
 # ===== Register Route Modules =====
 
+app.include_router(auth_routs.router)
+app.include_router(companies_routs.router)
 app.include_router(tally_routs.router)      # /api/tally/*
 app.include_router(invoice_routs.router)    # /api/invoices/*
 app.include_router(mapping_routs.router)    # /api/mappings/*
 app.include_router(voucher_routs.router)    # /api/vouchers/*
+
 
 
 # ===== Startup/Shutdown Events =====

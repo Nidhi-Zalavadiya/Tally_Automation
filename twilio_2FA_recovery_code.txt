@@ -1,0 +1,7 @@
+For Tally Automation Mobile Number Verification
+
+console.twilio.com.
+If you lose your phone, or don’t have access to your verification device, this code is your failsafe to access your account.
+
+Recovery code
+XH2ZR13GS2X4FSXGE9LP64CF

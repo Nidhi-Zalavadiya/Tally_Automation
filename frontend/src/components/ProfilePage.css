@@ -1,0 +1,299 @@
+/* ============================================================
+   ProfilePage.css
+   ============================================================ */
+
+.pp-wrap {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 24px 28px;
+}
+
+/* ── Hero ─────────────────────────────────────────────────── */
+.pp-hero {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px 28px;
+  margin-bottom: 24px;
+  position: relative;
+}
+
+.pp-avatar {
+  width: 68px; height: 68px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4f8ef7, #7c6af5);
+  color: #fff;
+  font-size: 26px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  letter-spacing: -1px;
+}
+
+.pp-hero-info { flex: 1; min-width: 0; }
+
+.pp-hero-name {
+  margin: 0 0 4px;
+  font-size: 20px; font-weight: 700;
+  color: var(--text);
+}
+
+.pp-hero-email {
+  margin: 0 0 10px;
+  font-size: 13.5px;
+  color: var(--text-muted);
+}
+
+.pp-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pp-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 11.5px; font-weight: 600;
+}
+
+.pp-badge--ok  { background: rgba(34,197,94,0.12); color: #16a34a; border: 1px solid rgba(34,197,94,0.25); }
+.pp-badge--no  { background: rgba(156,163,175,0.12); color: var(--text-muted); border: 1px solid var(--border); }
+
+/* ── Edit button ──────────────────────────────────────────── */
+.pp-edit-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 16px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px; font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.pp-edit-btn:hover { background: rgba(79,142,247,0.1); color: var(--accent); border-color: var(--accent); }
+
+/* ── Toast ────────────────────────────────────────────────── */
+.pp-toast {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 13.5px; font-weight: 500;
+  margin-bottom: 16px;
+}
+.pp-toast--ok  { background: rgba(34,197,94,0.1); color: #16a34a; border: 1px solid rgba(34,197,94,0.25); }
+.pp-toast--err { background: rgba(239,68,68,0.08); color: #dc2626; border: 1px solid rgba(239,68,68,0.2); }
+
+/* ── Grid ─────────────────────────────────────────────────── */
+.pp-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Card ─────────────────────────────────────────────────── */
+.pp-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 24px;
+}
+
+.pp-card--edit { /* slightly highlighted when editing */ border-color: var(--accent); }
+
+.pp-card-title {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 0 16px;
+  font-size: 14px; font-weight: 700;
+  color: var(--text);
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ── InfoRow ──────────────────────────────────────────────── */
+.pp-info-row {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.pp-info-row:last-child { border-bottom: none; }
+
+.pp-info-icon {
+  font-size: 17px;
+  width: 28px; flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.pp-info-body { flex: 1; min-width: 0; }
+
+.pp-info-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--text-muted);
+  margin-bottom: 3px;
+}
+
+.pp-info-value {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: 14px;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.pp-dimmed { color: var(--text-muted); font-style: italic; font-weight: 400; }
+
+.pp-lnk {
+  background: none; border: none; padding: 0;
+  color: var(--accent); cursor: pointer;
+  font-size: 13.5px; font-weight: 600;
+  text-decoration: underline;
+}
+.pp-lnk:hover { opacity: .8; }
+
+/* ── Edit form ────────────────────────────────────────────── */
+.pp-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+@media (max-width: 560px) { .pp-form-row { grid-template-columns: 1fr; } }
+
+.pp-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+.pp-field:last-of-type { margin-bottom: 0; }
+
+.pp-lbl {
+  font-size: 12px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .5px;
+  color: var(--text-muted);
+}
+
+.pp-lbl-note { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--text-muted); font-size: 11px; }
+
+.pp-inp {
+  padding: 9px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--text);
+  transition: border-color .15s;
+  width: 100%;
+  box-sizing: border-box;
+}
+.pp-inp:focus { outline: none; border-color: var(--accent); }
+.pp-inp--disabled { opacity: .5; cursor: not-allowed; }
+.pp-inp--err { border-color: #ef4444; }
+
+/* Phone input with prefix */
+.pp-phone-wrap {
+  display: flex; align-items: center;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: border-color .15s;
+}
+.pp-phone-wrap:focus-within { border-color: var(--accent); }
+
+.pp-phone-prefix {
+  padding: 9px 10px;
+  background: var(--bg3);
+  border-right: 1px solid var(--border);
+  font-size: 13px; font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.pp-inp--phone {
+  border: none;
+  border-radius: 0;
+  flex: 1;
+}
+.pp-inp--phone:focus { border: none; }
+
+.pp-field-err { font-size: 12px; color: #ef4444; }
+.pp-field-hint { font-size: 11.5px; color: var(--text-muted); }
+
+/* ── Edit action buttons ──────────────────────────────────── */
+.pp-edit-actions {
+  display: flex; gap: 10px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.pp-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 9px 20px;
+  border-radius: 8px;
+  font-size: 13.5px; font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+  border: 1px solid transparent;
+}
+.pp-btn:disabled { opacity: .6; cursor: not-allowed; }
+
+.pp-btn--save {
+  background: var(--accent);
+  color: #fff;
+}
+.pp-btn--save:hover:not(:disabled) { filter: brightness(1.1); }
+
+.pp-btn--cancel {
+  background: var(--bg3);
+  color: var(--text);
+  border-color: var(--border);
+}
+.pp-btn--cancel:hover:not(:disabled) { background: var(--bg); }
+
+/* ── Spinner ──────────────────────────────────────────────── */
+.pp-spin {
+  display: inline-block;
+  width: 12px; height: 12px;
+  border: 2px solid rgba(255,255,255,.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: pp-spin .7s linear infinite;
+}
+@keyframes pp-spin { to { transform: rotate(360deg); } }
+
+/* ── Skeleton loading ─────────────────────────────────────── */
+.pp-skeleton {
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 24px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+.pp-sk {
+  background: var(--bg3);
+  border-radius: 6px;
+  animation: pp-pulse 1.4s ease-in-out infinite;
+}
+.pp-sk--avatar { width: 68px; height: 68px; border-radius: 50%; align-self: flex-start; }
+.pp-sk--title  { height: 22px; width: 200px; }
+.pp-sk--sub    { height: 15px; width: 140px; }
+.pp-sk--line   { height: 15px; width: 100%; }
+
+@keyframes pp-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .45; }
+}
+
+/* ── Error state ──────────────────────────────────────────── */
+.pp-error {
+  padding: 20px;
+  color: #dc2626;
+  background: rgba(239,68,68,0.06);
+  border: 1px solid rgba(239,68,68,.2);
+  border-radius: 10px;
+  font-size: 14px;
+}
