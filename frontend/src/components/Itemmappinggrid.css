@@ -13,7 +13,7 @@
   min-height: 0;
 }
 
-/* ── Toolbar ────────────────────────────────────────────────── */
+/* ── Toolbar ── */
 .grid-toolbar {
   display: flex;
   align-items: center;
@@ -28,7 +28,7 @@
 .grid-toolbar strong { font-size: 13px; font-weight: 700; }
 .sugg-loading { color: var(--purple); font-size: 11px; margin-left: 10px; font-style: italic; }
 
-/* ── Inline Ledger Settings Panel ───────────────────────────── */
+/* ── Ledger Settings ── */
 .settings-panel-inline {
   padding: 14px 16px;
   background: rgba(79,142,247,0.04);
@@ -36,121 +36,83 @@
   flex-shrink: 0;
 }
 
-/* ── XML Preview ────────────────────────────────────────────── */
-.xml-preview {
-  background: var(--bg);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-.xml-preview-header {
+/* ── Bulk Action Bar ── */
+.bulk-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
   padding: 10px 16px;
-  border-bottom: 1px solid var(--border);
-  font-size: 12.5px;
-  background: var(--bg3);
-  gap: 12px;
+  background: rgba(167,139,250,0.06);
+  border-bottom: 1px solid rgba(167,139,250,0.2);
+  flex-shrink: 0;
+}
+
+/* ── XML Preview ── */
+.xml-preview { background: var(--bg); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.xml-preview-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px; border-bottom: 1px solid var(--border);
+  font-size: 12.5px; background: var(--bg3); gap: 12px;
 }
 .xml-pre {
-  padding: 14px 16px;
-  font-family: var(--mono);
-  font-size: 11px;
-  color: #86efac;
-  max-height: 200px;
-  overflow: auto;
-  white-space: pre-wrap;
-  word-break: break-all;
-  line-height: 1.6;
-  background: #0a0e16;
-}
-.xml-pre::-webkit-scrollbar { height: 4px; width: 4px; }
-.xml-pre::-webkit-scrollbar-thumb { background: var(--bg4); }
-
-/* ── Scrollable Table Area ──────────────────────────────────── */
-.table-scroll {
-  flex: 1;
-  overflow: auto;
-  min-height: 0;
+  padding: 14px 16px; font-family: var(--mono); font-size: 11px;
+  color: var(--xml-text); max-height: 200px; overflow: auto;
+  white-space: pre-wrap; word-break: break-all; line-height: 1.6;
+  background: var(--xml-bg);
 }
 
-/* ── Mapping Table ──────────────────────────────────────────── */
+/* ── Table Scroll ── */
+.table-scroll { flex: 1; overflow: auto; min-height: 0; }
+.table-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
+.table-scroll::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 3px; }
+
+/* ── Mapping Table ── */
 .mapping-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-
 .mapping-table th {
-  padding: 8px 10px;
-  background: var(--bg3);
-  text-align: left;
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  white-space: nowrap;
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  border-bottom: 1px solid var(--border);
+  padding: 8px 10px; background: var(--bg3); text-align: left;
+  font-size: 10px; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap;
+  position: sticky; top: 0; z-index: 5; border-bottom: 1px solid var(--border);
 }
 .mapping-table td {
-  padding: 7px 10px;
-  border-bottom: 1px solid var(--border);
-  vertical-align: middle;
-  white-space: nowrap;
-  font-size: 12px;
+  padding: 7px 10px; border-bottom: 1px solid var(--border);
+  vertical-align: middle; white-space: nowrap; font-size: 12px;
 }
 .mapping-table tbody tr:hover { background: rgba(255,255,255,0.02); }
 .mapping-table tbody tr.row-mapped { background: rgba(34,197,94,0.03); }
-.mapping-table tbody tr.row-pending td:first-child { border-left: 2px solid var(--bg4); }
+.mapping-table tbody tr.row-saved  { background: rgba(34,197,94,0.06); }
+.mapping-table tbody tr.row-pending td:first-child { border-left: 2px solid transparent; }
 
 /* Cell types */
-.num {
+.num         { font-family: var(--mono); font-size: 11.5px; text-align: right; color: var(--text2); }
+.total-cell  { font-weight: 700 !important; color: var(--text) !important; }
+.desc-cell   { display: block; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Tally qty preview (shows "→ 5b" below qty) */
+.tally-qty-preview {
   font-family: var(--mono);
-  font-size: 11.5px;
-  text-align: right;
-  color: var(--text2);
-}
-.total-cell { font-weight: 700 !important; color: var(--text) !important; }
-
-.desc-cell {
-  display: block;
-  max-width: 160px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
+  font-size: 10px;
+  color: var(--cyan);
+  margin-top: 2px;
+  font-weight: 600;
 }
 
-/* Inline editable inputs */
+/* Editable cells */
 .cell-input {
-  background: var(--bg3);
-  border: 1px solid transparent;
-  border-radius: 5px;
-  padding: 4px 6px;
-  color: var(--text);
-  font-size: 12px;
-  font-family: var(--mono);
-  width: 72px;
-  outline: none;
-  transition: border-color var(--t);
+  background: var(--bg3); border: 1px solid transparent; border-radius: 5px;
+  padding: 4px 6px; color: var(--text); font-size: 12px; font-family: var(--mono);
+  width: 68px; outline: none; transition: border-color var(--t);
 }
 .cell-input:focus { border-color: var(--accent); }
 
 .cell-select {
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 4px 7px;
-  color: var(--text);
-  font-size: 12px;
-  font-family: var(--font);
-  cursor: pointer;
-  max-width: 190px;
-  outline: none;
-  transition: border-color var(--t);
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 6px;
+  padding: 4px 7px; color: var(--text); font-size: 12px; font-family: var(--font);
+  cursor: pointer; max-width: 190px; outline: none; transition: border-color var(--t);
 }
 .cell-select:focus { border-color: var(--accent); }
-.cell-select option { background: var(--bg3); }
+.cell-select option { background: var(--bg2); }
 
 /* Map column */
 .map-cell   { min-width: 210px; }
@@ -158,53 +120,25 @@
 
 /* Suggestion chip */
 .sugg-chip {
-  display: block;
-  margin-top: 4px;
-  padding: 3px 8px;
-  background: rgba(167,139,250,0.1);
-  border: 1px solid rgba(167,139,250,0.25);
-  border-radius: 5px;
-  color: var(--purple);
-  font-size: 10.5px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all var(--t);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 210px;
-  text-align: left;
+  display: block; margin-top: 4px; padding: 3px 8px;
+  background: rgba(167,139,250,0.1); border: 1px solid rgba(167,139,250,0.25);
+  border-radius: 5px; color: var(--purple); font-size: 10.5px; font-weight: 600;
+  cursor: pointer; transition: all var(--t); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; max-width: 210px; text-align: left;
 }
 .sugg-chip:hover { background: rgba(167,139,250,0.2); }
 
 /* Mapped indicator */
 .mapped-indicator {
-  display: block;
-  margin-top: 4px;
-  font-size: 10.5px;
-  color: var(--green);
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 210px;
+  display: block; margin-top: 4px; font-size: 10.5px; color: var(--green);
+  font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 210px;
 }
+.mapped-indicator.saved { color: var(--cyan); }
 
-/* ── Footer ─────────────────────────────────────────────────── */
+/* Footer */
 .grid-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 16px;
-  border-top: 1px solid var(--border);
-  font-size: 12px;
-  color: var(--text2);
-  background: var(--bg3);
-  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px; border-top: 1px solid var(--border);
+  font-size: 12px; color: var(--text2); background: var(--bg3); flex-shrink: 0;
 }
-.grid-footer strong {
-  font-size: 14px;
-  font-weight: 800;
-  color: var(--text);
-  font-family: var(--mono);
-}
+.grid-footer strong { font-size: 14px; font-weight: 800; color: var(--text); font-family: var(--mono); }

@@ -1,11 +1,18 @@
-// src/components/Companies.jsx
 import React, { useState } from 'react';
-
-const Companies = ({ companies, removeCompany, setActiveMenu }) => {
+// Added default value [] to companies to prevent 'undefined' crashes
+const Companies = ({ companies = [], removeCompany, setActiveMenu }) => {
   const [search, setSearch] = useState('');
 
-  const filtered = companies.filter((c) =>
-    c.company_name.toLowerCase().includes(search.toLowerCase())
+  // 1. Ensure companies is treated as an array even if the parent sends an object
+  // Your backend returns { companies: [...] }, so we normalize it here
+  const safeCompanies = Array.isArray(companies) 
+    ? companies 
+    : (companies && typeof companies === 'object' && Array.isArray(companies.companies))
+      ? companies.companies 
+      : [];
+  // 2. Use safeCompanies for filtering
+  const filtered = safeCompanies.filter((c) =>
+    c?.company_name?.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -61,7 +68,8 @@ const Companies = ({ companies, removeCompany, setActiveMenu }) => {
                 filtered.map((c) => (
                   <tr key={c.id}>
                     <td><strong>{c.company_name}</strong></td>
-                    <td>{new Date(c.connected_at).toLocaleTimeString('en-IN')}</td>
+                    <td>{c.connected_at ? new Date(c.connected_at).toLocaleTimeString('en-IN') : 'N/A'}</td>
+                    {/* Optional chaining ?. ensures length check doesn't crash if data is null */}
                     <td><span className="badge badge-blue">{c.ledgers?.length ?? 0}</span></td>
                     <td><span className="badge badge-purple">{c.stock_items?.length ?? 0}</span></td>
                     <td><span className="badge badge-green">{c.units?.length ?? 0}</span></td>

@@ -1,27 +1,34 @@
 // src/components/TallyIntegration.jsx
+import './TallyIntegration.css';
 import React, { useState } from 'react';
-import { tally } from '../services/api';
-import './TallyIntegration.css'
+import { companies as companiesApi } from '../services/api';
+import { useAppState } from '../context/AppStateContext';
 
-const TallyIntegration = ({ companies, addCompany }) => {
+// Added onSuccess prop to trigger refresh in App.jsx
+const TallyIntegration = ({ setActiveMenu, onSuccess }) => {
+  const { companies, addOrUpdateCompany, removeCompany } = useAppState();
   const [companyName, setCompanyName] = useState('');
-  const [connecting, setConnecting]   = useState(false);
-  const [masters, setMasters]         = useState(null);
-  const [error, setError]             = useState(null);
+  const [connecting,  setConnecting]  = useState(false);
+  const [masters,     setMasters]     = useState(null);
+  const [error,       setError]       = useState(null);
 
   const handleConnect = async () => {
     if (!companyName.trim()) return;
     setConnecting(true);
     setError(null);
     setMasters(null);
-
     try {
-      // POST /api/tally/connect → { company_name, ledgers[], stock_items[], units[] }
-      const res  = await tally.connect(companyName.trim());
+      // POST /api/companies/connect — saves to DB + returns masters
+      const res  = await companiesApi.connect(companyName.trim());
       const data = res.data;
-
+      
       setMasters(data);
-      addCompany(data); // store in App state — no new API needed
+      addOrUpdateCompany(data); 
+      
+      // ─── KEY CHANGE: Trigger the refresh in App.jsx ───
+      if (onSuccess) await onSuccess(); 
+      
+      setCompanyName('');
     } catch (e) {
       setError(e.response?.data?.detail || e.message);
     } finally {
@@ -29,54 +36,58 @@ const TallyIntegration = ({ companies, addCompany }) => {
     }
   };
 
+  const handleDisconnect = async (id, name) => {
+    if (!window.confirm(`Disconnect "${name}"?`)) return;
+    try {
+      await companiesApi.disconnect(id);
+      removeCompany(id);
+      // Refresh the main list after removal
+      if (onSuccess) await onSuccess(); 
+    } catch (e) {
+      alert('Failed: ' + (e.response?.data?.detail || e.message));
+    }
+  };
+
   return (
     <div className="tally-page">
-
-      {/* ── Connect Form ── */}
-      <div className="card" style={{ marginBottom: 20 }}>
+      <div className="card">
         <div className="card-header">
           <h3 className="card-title">🔌 Connect to Tally Prime</h3>
         </div>
         <div className="card-body">
-          <div className="alert alert-info" style={{ marginBottom: 16 }}>
-            Make sure Tally Prime is running with Tally.NET enabled on <code>localhost:9000</code>
+          <div className="alert alert-info">
+            Make sure Tally Prime is open with Tally.NET enabled on <code>localhost:9000</code>
           </div>
-
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>
             <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-              <label className="form-label">Company Name *</label>
+              <label className="form-label">Company Name</label>
               <input
                 className="form-control"
-                placeholder="Exact name as shown in Tally e.g. My Company Ltd"
+                placeholder="Exact name as shown in Tally"
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && !connecting && handleConnect()}
                 disabled={connecting}
               />
             </div>
-            <button
-              className="btn btn-primary"
-              onClick={handleConnect}
-              disabled={connecting || !companyName.trim()}
-            >
+            <button className="btn btn-primary" onClick={handleConnect} disabled={connecting || !companyName.trim()}>
               {connecting ? 'Connecting…' : 'Connect'}
             </button>
           </div>
-
-          {error && (
-            <div className="alert alert-error" style={{ marginTop: 12 }}>⚠️ {error}</div>
-          )}
+          {error && <div className="alert alert-error" style={{ marginTop: 12 }}>{error}</div>}
         </div>
       </div>
 
-      {/* ── Masters Result ── */}
       {masters && (
-        <div className="card" style={{ marginBottom: 20 }}>
+        <div className="card">
           <div className="card-header">
             <h3 className="card-title">✅ Connected — {masters.company_name}</h3>
+            <button className="btn btn-primary btn-sm" onClick={() => setActiveMenu('invoices')}>
+              Upload Invoice →
+            </button>
           </div>
           <div className="card-body">
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16 }}>
+            <div className="masters-grid">
               {[
                 { key: 'ledgers',     label: 'Ledgers',     icon: '📒' },
                 { key: 'stock_items', label: 'Stock Items', icon: '📦' },
@@ -88,13 +99,13 @@ const TallyIntegration = ({ companies, addCompany }) => {
                     <span className="badge badge-blue">{masters[m.key]?.length || 0}</span>
                   </div>
                   <div className="master-list">
-                    {(masters[m.key] || []).slice(0, 30).map((item, i) => (
+                    {(masters[m.key] || []).slice(0, 40).map((item, i) => (
                       <div key={i} className="master-item">
                         {typeof item === 'string' ? item : item.name}
                       </div>
                     ))}
-                    {masters[m.key]?.length > 30 && (
-                      <div className="master-item muted">+{masters[m.key].length - 30} more…</div>
+                    {masters[m.key]?.length > 40 && (
+                      <div className="master-item muted">+{masters[m.key].length - 40} more…</div>
                     )}
                   </div>
                 </div>
@@ -104,31 +115,32 @@ const TallyIntegration = ({ companies, addCompany }) => {
         </div>
       )}
 
-      {/* ── Already connected this session ── */}
       {companies.length > 0 && (
         <div className="card">
           <div className="card-header">
-            <h3 className="card-title">Connected This Session</h3>
+            <h3 className="card-title">All Connected Companies</h3>
+            <span className="badge badge-blue">{companies.length}</span>
           </div>
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Company</th>
-                  <th>Connected At</th>
-                  <th>Ledgers</th>
-                  <th>Stock Items</th>
-                  <th>Units</th>
+                  <th>Company</th><th>Connected</th><th>Ledgers</th><th>Stock</th><th>Units</th><th></th>
                 </tr>
               </thead>
               <tbody>
                 {companies.map((c) => (
                   <tr key={c.id}>
                     <td><strong>{c.company_name}</strong></td>
-                    <td>{new Date(c.connected_at).toLocaleTimeString('en-IN')}</td>
-                    <td><span className="badge badge-blue">{c.ledgers?.length ?? 0}</span></td>
-                    <td><span className="badge badge-purple">{c.stock_items?.length ?? 0}</span></td>
-                    <td><span className="badge badge-green">{c.units?.length ?? 0}</span></td>
+                    <td>{c.connected_at ? new Date(c.connected_at).toLocaleDateString('en-IN') : '—'}</td>
+                    <td><span className="badge badge-blue">{c.ledgers?.length ?? '—'}</span></td>
+                    <td><span className="badge badge-purple">{c.stock_items?.length ?? '—'}</span></td>
+                    <td><span className="badge badge-green">{c.units?.length ?? '—'}</span></td>
+                    <td>
+                      <button className="btn btn-danger btn-xs" onClick={() => handleDisconnect(c.id, c.company_name)}>
+                        Disconnect
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

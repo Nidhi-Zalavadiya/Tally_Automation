@@ -1,51 +1,79 @@
 // src/components/Dashboard.jsx
-import React from 'react';
-import './dashboard.css'
+import './Dashboard.css';
+import React, { useEffect, useState } from 'react';
+import { useAppState } from '../context/AppstateContext';
+import { companies as companiesApi } from '../services/api';
 
-const Dashboard = ({ companies, setActiveMenu }) => {
+const Dashboard = ({ setActiveMenu }) => {
+  const { companies, mergeCompanies, uploadedInvoices, mappingStatus } = useAppState();
+  const [loading, setLoading] = useState(companies.length===0);
+
+  // ── Fetch companies from DB on mount ─────────────────────────
+  useEffect(() => {
+  if (companies.length === 0) {
+    let isSubscribed = true;
+
+    // Use a function to ensure it's handled in the next tick 
+    // or simply start the fetch and let the async nature handle it
+    const fetchData = async () => {
+      setLoading(true); // Now it's inside an async scope
+      try {
+        const r = await companiesApi.list();
+        if (isSubscribed) mergeCompanies(r.data.companies || []);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        if (isSubscribed) setLoading(false);
+      }
+    };
+
+    fetchData();
+    return () => { isSubscribed = false; };
+  }
+}, [companies.length, mergeCompanies]);
+
+  const totalStock   = companies.reduce((s, c) => s + (c.stock_items?.length || 0), 0);
+  const totalLedgers = companies.reduce((s, c) => s + (c.ledgers?.length || 0), 0);
+  const _totalMapped  = Object.values(mappingStatus).reduce((s, v) => s + v.mapped, 0);
+
   return (
     <div className="dashboard">
-
-      {/* Stats */}
+      {/* ── KPI Stats ── */}
       <div className="stats-grid">
-        <div className="stat-card">
+        <div className="stat-card" onClick={() => setActiveMenu('companies')} style={{ cursor: 'pointer' }}>
           <div className="stat-icon blue">🏢</div>
           <div className="stat-content">
             <span className="stat-label">Connected Companies</span>
-            <span className="stat-value">{companies.length}</span>
+            <span className="stat-value">{loading ? '…' : companies.length}</span>
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-icon green">📦</div>
           <div className="stat-content">
             <span className="stat-label">Total Stock Items</span>
-            <span className="stat-value">
-              {companies.reduce((s, c) => s + (c.stock_items?.length || 0), 0)}
-            </span>
+            <span className="stat-value">{totalStock}</span>
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-icon yellow">📒</div>
           <div className="stat-content">
             <span className="stat-label">Total Ledgers</span>
-            <span className="stat-value">
-              {companies.reduce((s, c) => s + (c.ledgers?.length || 0), 0)}
-            </span>
+            <span className="stat-value">{totalLedgers}</span>
           </div>
         </div>
-        <div className="stat-card">
+        <div className="stat-card" onClick={() => setActiveMenu('invoices')} style={{ cursor: 'pointer' }}>
           <div className="stat-icon purple">📄</div>
           <div className="stat-content">
-            <span className="stat-label">Invoices This Session</span>
-            <span className="stat-value">0</span>
+            <span className="stat-label">Invoices Loaded</span>
+            <span className="stat-value">{uploadedInvoices.length}</span>
           </div>
         </div>
       </div>
 
-      {/* Connected Companies */}
+      {/* ── Companies Table ── */}
       <div className="card">
         <div className="card-header">
-          <h3 className="card-title">Connected Companies</h3>
+          <h3 className="card-title">Your Companies</h3>
           <button className="btn btn-outline btn-sm" onClick={() => setActiveMenu('tally')}>
             + Connect →
           </button>
@@ -54,35 +82,37 @@ const Dashboard = ({ companies, setActiveMenu }) => {
           <table>
             <thead>
               <tr>
-                <th>Company Name</th>
+                <th>Company</th>
                 <th>Connected At</th>
                 <th>Ledgers</th>
                 <th>Stock Items</th>
                 <th>Units</th>
                 <th>Status</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
               {companies.length === 0 ? (
-                <tr>
-                  <td colSpan={6}>
-                    <div className="empty-state">
-                      <p>No companies connected yet.</p>
-                      <button className="btn btn-primary btn-sm" onClick={() => setActiveMenu('tally')}>
-                        Connect to Tally
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+                <tr><td colSpan={7}>
+                  <div className="empty-state">
+                    <p>{loading ? 'Loading companies…' : 'No companies connected yet.'}</p>
+                    {!loading && <button className="btn btn-primary btn-sm" onClick={() => setActiveMenu('tally')}>Connect to Tally</button>}
+                  </div>
+                </td></tr>
               ) : (
                 companies.map((c) => (
                   <tr key={c.id}>
                     <td><strong>{c.company_name}</strong></td>
-                    <td>{new Date(c.connected_at).toLocaleTimeString('en-IN')}</td>
-                    <td><span className="badge badge-blue">{c.ledgers?.length ?? 0}</span></td>
-                    <td><span className="badge badge-purple">{c.stock_items?.length ?? 0}</span></td>
-                    <td><span className="badge badge-green">{c.units?.length ?? 0}</span></td>
+                    <td>{c.connected_at ? new Date(c.connected_at).toLocaleDateString('en-IN') : '—'}</td>
+                    <td><span className="badge badge-blue">{c.ledgers?.length ?? '—'}</span></td>
+                    <td><span className="badge badge-purple">{c.stock_items?.length ?? '—'}</span></td>
+                    <td><span className="badge badge-green">{c.units?.length ?? '—'}</span></td>
                     <td><span className="badge badge-green">● Active</span></td>
+                    <td>
+                      <button className="btn btn-outline btn-xs" onClick={() => setActiveMenu('invoices')}>
+                        Upload Invoice →
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -91,7 +121,7 @@ const Dashboard = ({ companies, setActiveMenu }) => {
         </div>
       </div>
 
-      {/* Quick Actions */}
+      {/* ── Quick Actions ── */}
       <div className="quick-actions">
         <h3>Quick Actions</h3>
         <div className="action-row">
@@ -101,8 +131,7 @@ const Dashboard = ({ companies, setActiveMenu }) => {
             { icon: '⚙️', label: 'Settings',        page: 'settings' },
           ].map((q) => (
             <button key={q.page} className="action-btn" onClick={() => setActiveMenu(q.page)}>
-              <span>{q.icon}</span>
-              {q.label}
+              <span>{q.icon}</span>{q.label}
             </button>
           ))}
         </div>

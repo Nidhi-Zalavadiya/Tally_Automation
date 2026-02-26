@@ -31,7 +31,7 @@ class SaveMappingRequest(BaseModel):
     json_description: str
     tally_item_name: str
     last_sales_rate: float = None
-    mrp: float = None
+    alt_unit: str = None
 
 
 class BulkSuggestRequest(BaseModel):
@@ -89,7 +89,7 @@ async def save_mapping(
             "json_description": "Apple iPhone 15 Pro",
             "tally_item_name": "iPhone 15 Pro 256GB",
             "last_sales_rate": 129900.00,
-            "mrp": 134900.00
+            "alt_unit": "box"
         }
     
     Returns:
@@ -108,7 +108,7 @@ async def save_mapping(
             json_description=request.json_description,
             tally_item_name=request.tally_item_name,
             last_sales_rate=request.last_sales_rate,
-            mrp=request.mrp
+            alt_unit=request.alt_unit
         )
         
         return {
@@ -136,7 +136,7 @@ async def get_company_mappings(
                     "json_description": "Product A",
                     "tally_item_name": "Product A Master",
                     "last_sales_rate": 100.00,
-                    "mrp": 150.00
+                    "alt_unit": "box"
                 }
             ],
             "total_count": 25
