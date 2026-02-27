@@ -2,11 +2,10 @@
 import './TallyIntegration.css';
 import React, { useState } from 'react';
 import { companies as companiesApi } from '../services/api';
-import { useAppState } from '../context/AppStateContext';
+import { useAppState } from '../context/AppstateContext';
 
-// Added onSuccess prop to trigger refresh in App.jsx
 const TallyIntegration = ({ setActiveMenu, onSuccess }) => {
-  const { companies, addOrUpdateCompany, removeCompany } = useAppState();
+  const { companies, addOrUpdateCompany } = useAppState();
   const [companyName, setCompanyName] = useState('');
   const [connecting,  setConnecting]  = useState(false);
   const [masters,     setMasters]     = useState(null);
@@ -18,33 +17,16 @@ const TallyIntegration = ({ setActiveMenu, onSuccess }) => {
     setError(null);
     setMasters(null);
     try {
-      // POST /api/companies/connect — saves to DB + returns masters
       const res  = await companiesApi.connect(companyName.trim());
       const data = res.data;
-      
       setMasters(data);
-      addOrUpdateCompany(data); 
-      
-      // ─── KEY CHANGE: Trigger the refresh in App.jsx ───
-      if (onSuccess) await onSuccess(); 
-      
+      addOrUpdateCompany(data);
+      if (onSuccess) await onSuccess();
       setCompanyName('');
     } catch (e) {
       setError(e.response?.data?.detail || e.message);
     } finally {
       setConnecting(false);
-    }
-  };
-
-  const handleDisconnect = async (id, name) => {
-    if (!window.confirm(`Disconnect "${name}"?`)) return;
-    try {
-      await companiesApi.disconnect(id);
-      removeCompany(id);
-      // Refresh the main list after removal
-      if (onSuccess) await onSuccess(); 
-    } catch (e) {
-      alert('Failed: ' + (e.response?.data?.detail || e.message));
     }
   };
 
@@ -70,7 +52,11 @@ const TallyIntegration = ({ setActiveMenu, onSuccess }) => {
                 disabled={connecting}
               />
             </div>
-            <button className="btn btn-primary" onClick={handleConnect} disabled={connecting || !companyName.trim()}>
+            <button
+              className="btn btn-primary"
+              onClick={handleConnect}
+              disabled={connecting || !companyName.trim()}
+            >
               {connecting ? 'Connecting…' : 'Connect'}
             </button>
           </div>
@@ -78,6 +64,7 @@ const TallyIntegration = ({ setActiveMenu, onSuccess }) => {
         </div>
       </div>
 
+      {/* Success — show masters after connect */}
       {masters && (
         <div className="card">
           <div className="card-header">
@@ -105,7 +92,9 @@ const TallyIntegration = ({ setActiveMenu, onSuccess }) => {
                       </div>
                     ))}
                     {masters[m.key]?.length > 40 && (
-                      <div className="master-item muted">+{masters[m.key].length - 40} more…</div>
+                      <div className="master-item muted">
+                        +{masters[m.key].length - 40} more…
+                      </div>
                     )}
                   </div>
                 </div>
@@ -115,6 +104,7 @@ const TallyIntegration = ({ setActiveMenu, onSuccess }) => {
         </div>
       )}
 
+      {/* All companies — status only, no disconnect */}
       {companies.length > 0 && (
         <div className="card">
           <div className="card-header">
@@ -125,24 +115,38 @@ const TallyIntegration = ({ setActiveMenu, onSuccess }) => {
             <table>
               <thead>
                 <tr>
-                  <th>Company</th><th>Connected</th><th>Ledgers</th><th>Stock</th><th>Units</th><th></th>
+                  <th>Company</th>
+                  <th>Last Connected</th>
+                  <th>Ledgers</th>
+                  <th>Stock</th>
+                  <th>Units</th>
+                  <th>Status</th>
                 </tr>
               </thead>
               <tbody>
-                {companies.map((c) => (
-                  <tr key={c.id}>
-                    <td><strong>{c.company_name}</strong></td>
-                    <td>{c.connected_at ? new Date(c.connected_at).toLocaleDateString('en-IN') : '—'}</td>
-                    <td><span className="badge badge-blue">{c.ledgers?.length ?? '—'}</span></td>
-                    <td><span className="badge badge-purple">{c.stock_items?.length ?? '—'}</span></td>
-                    <td><span className="badge badge-green">{c.units?.length ?? '—'}</span></td>
-                    <td>
-                      <button className="btn btn-danger btn-xs" onClick={() => handleDisconnect(c.id, c.company_name)}>
-                        Disconnect
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {companies.map((c) => {
+                  // Active = has ledgers loaded in this session
+                  const isActive = c.ledgers?.length > 0;
+                  return (
+                    <tr key={c.id}>
+                      <td><strong>{c.company_name}</strong></td>
+                      <td>
+                        {c.connected_at
+                          ? new Date(c.connected_at).toLocaleDateString('en-IN')
+                          : '—'}
+                      </td>
+                      <td><span className="badge badge-blue">{c.ledgers?.length ?? '—'}</span></td>
+                      <td><span className="badge badge-purple">{c.stock_items?.length ?? '—'}</span></td>
+                      <td><span className="badge badge-green">{c.units?.length ?? '—'}</span></td>
+                      <td>
+                        {isActive
+                          ? <span className="badge badge-green">● Active</span>
+                          : <span className="badge badge-gray">○ Inactive</span>
+                        }
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

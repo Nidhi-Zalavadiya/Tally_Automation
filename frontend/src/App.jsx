@@ -1,13 +1,9 @@
 // src/App.jsx
-// The full app shell ALWAYS renders.
-// When user is not logged in, AuthModal overlays it with a blur.
-// This way the dashboard is visible behind the login form — much better UX.
-
-import React, { useState,useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import './App.css';
-import { ThemeProvider, useTheme }           from './context/ThemeContext';
-import { AuthProvider, useAuth }             from './context/AuthContext';
-import { AppStateProvider, useAppState }     from './context/AppStateContext';
+import { ThemeProvider, useTheme }       from './context/ThemeContext';
+import { AuthProvider, useAuth }         from './context/AuthContext';
+import { AppStateProvider, useAppState } from './context/AppstateContext';
 
 import AuthModal        from './components/AuthModal';
 import Dashboard        from './components/Dashboard';
@@ -19,10 +15,11 @@ import ImportWizard     from './components/ImportWizard';
 import Reports          from './components/Reports';
 import ActivityLogs     from './components/ActivityLogs';
 import Billing          from './components/Billing';
-import ProfilePage      from './components/Profilepage';
-import api from '../src/services/api'
+import ProfilePage      from './components/ProfilePage';
+import api              from './services/api';
+import { companies as companiesApi } from './services/api';
 
-/* ── Theme Toggle ────────────────────────────────────────── */
+/* ── Theme Toggle ─────────────────────────────────────────── */
 function ThemeToggle() {
   const { theme, toggleTheme } = useTheme();
   const isDark = theme === 'dark';
@@ -54,10 +51,18 @@ function ThemeToggle() {
 
 /* ── App Shell ───────────────────────────────────────────── */
 function AppShell() {
-  const { user, logout } = useAuth();
-  const { clearAll }     = useAppState();
-  const [activeMenu, setActiveMenu]             = useState('dashboard');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const { user, logout }         = useAuth();
+  const { clearAll, addOrUpdateCompany, mergeCompanies } = useAppState();
+
+  const [activeMenu,        setActiveMenu]        = useState('dashboard');
+  const [sidebarCollapsed,  setSidebarCollapsed]  = useState(false);
+
+  // companies list from DB (id + name + connected_at, no masters)
+  const [dbCompanies,      setDbCompanies]       = useState([]);
+  // Set of company IDs that are synced (have masters) this session
+  const [activeCompanyIds, setActiveCompanyIds]  = useState(new Set());
+  // Full companies with masters (for Settings, InvoiceMapping dropdowns)
+  const [syncedCompanies,  setSyncedCompanies]   = useState([]);
 
   const menuItems = [
     { id: 'dashboard', icon: '📊', label: 'Dashboard'     },
@@ -68,52 +73,102 @@ function AppShell() {
     { id: 'reports',   icon: '📈', label: 'Reports'       },
     { id: 'activity',  icon: '📋', label: 'Activity Logs' },
     { id: 'billing',   icon: '💳', label: 'Billing'       },
-    { id: 'settings',  icon: '⚙️', label: 'Settings'     },
+    { id: 'settings',  icon: '⚙️', label: 'Settings'      },
     { id: 'profile',   icon: '👤', label: 'My Profile'    },
   ];
 
-    const [companies, setCompanies] = useState([]);
-
-  const refreshCompanies = async () => {
+  // ── Load DB companies list on login ───────────────────────────
+  // This only gets id + name + connected_at (no masters — those need live Tally connect)
+  const loadDbCompanies = async () => {
     try {
-      const res = await api.get('/companies/'); // Your endpoint to get connected companies
-      // Handle the { "companies": [...] } structure from your JSON
-      const data = res.data?.companies || [];
-      setCompanies(data);
+      const res  = await companiesApi.list();
+      const list = res.data?.companies || [];
+      setDbCompanies(list);
+      // Merge into AppState context (for Dashboard KPIs)
+      mergeCompanies(list);
     } catch (err) {
-      console.error("Failed to fetch companies:", err);
+      console.error('Failed to fetch companies:', err);
     }
   };
-//  LOAD ON STARTUP
+
   useEffect(() => {
-    if (user) {
-      refreshCompanies();
+    if (user) loadDbCompanies();
+    else {
+      // On logout — clear active session data
+      setDbCompanies([]);
+      setActiveCompanyIds(new Set());
+      setSyncedCompanies([]);
     }
   }, [user]);
+
+  // ── Called when a company is successfully connected to Tally ──
+  // Adds it to the "active" set and stores its masters
+  const handleTallyConnectSuccess = async () => {
+    // Reload the DB list so new companies appear
+    await loadDbCompanies();
+  };
+
+  // ── Called after a fresh connect — data comes from TallyIntegration ──
+  // AppStateContext's addOrUpdateCompany is called by TallyIntegration directly.
+  // Here we just mark the company as active.
+  const markCompanyActive = (companyData) => {
+    setActiveCompanyIds((prev) => new Set([...prev, companyData.id]));
+    setSyncedCompanies((prev) => {
+      const idx = prev.findIndex((c) => c.id === companyData.id);
+      if (idx !== -1) {
+        const arr = [...prev]; arr[idx] = companyData; return arr;
+      }
+      return [...prev, companyData];
+    });
+  };
+
+  // ── Re-sync a company from Companies page ─────────────────────
+  const handleReconnect = async (company_name) => {
+    const res  = await companiesApi.connect(company_name);
+    const data = res.data;
+    addOrUpdateCompany(data);
+    markCompanyActive(data);
+    await loadDbCompanies();
+  };
+
+  // Merge DB list with synced masters for full company objects
+  const mergedCompanies = dbCompanies.map((db) => {
+    const synced = syncedCompanies.find((s) => s.id === db.id);
+    return synced ? { ...db, ...synced } : db;
+  });
 
   const handleLogout = () => { clearAll(); logout(); };
 
   const renderPage = () => {
     switch (activeMenu) {
-      case 'dashboard': return <Dashboard        setActiveMenu={setActiveMenu} />;
-      case 'companies': return <Companies        companies={companies} setActiveMenu={setActiveMenu} />;
-      case 'tally':     return <TallyIntegration setActiveMenu={setActiveMenu} onSuccess={refreshCompanies}/>;
+      case 'dashboard': return <Dashboard setActiveMenu={setActiveMenu} />;
+      case 'companies': return (
+        <Companies
+          companies={mergedCompanies}
+          activeCompanyIds={activeCompanyIds}
+          onReconnect={handleReconnect}
+          setActiveMenu={setActiveMenu}
+        />
+      );
+      case 'tally': return (
+        <TallyIntegration
+          setActiveMenu={setActiveMenu}
+          onSuccess={handleTallyConnectSuccess}
+        />
+      );
       case 'invoices':  return <InvoiceMapping />;
       case 'import':    return <ImportWizard />;
       case 'reports':   return <Reports />;
       case 'activity':  return <ActivityLogs />;
       case 'billing':   return <Billing />;
-      case 'settings':  return <Settings  companies={companies} setActiveMenu={setActiveMenu}/>;
+      case 'settings':  return <Settings companies={mergedCompanies} setActiveMenu={setActiveMenu} />;
       case 'profile':   return <ProfilePage />;
       default:          return <Dashboard setActiveMenu={setActiveMenu} />;
     }
   };
 
-
-
   return (
     <div className="app">
-      {/* Auth modal overlays when not logged in */}
       {!user && <AuthModal />}
 
       {/* ── Sidebar ── */}
@@ -148,15 +203,19 @@ function AppShell() {
 
         <div className="sidebar-footer">
           <div className="user-info">
-            <div className="user-avatar" style={{ cursor: 'pointer' }}
-                 onClick={() => user && setActiveMenu('profile')}
-                 title={user ? 'View Profile' : ''}>
+            <div className="user-avatar"
+              style={{ cursor: 'pointer' }}
+              onClick={() => user && setActiveMenu('profile')}
+              title={user ? 'View Profile' : ''}
+            >
               {user?.first_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || '?'}
             </div>
             {!sidebarCollapsed && (
               <div className="user-details">
-                <div className="user-name" style={{ cursor: user ? 'pointer' : 'default' }}
-                     onClick={() => user && setActiveMenu('profile')}>
+                <div className="user-name"
+                  style={{ cursor: user ? 'pointer' : 'default' }}
+                  onClick={() => user && setActiveMenu('profile')}
+                >
                   {user ? (user.first_name || user.email?.split('@')[0]) : 'Not signed in'}
                 </div>
                 {user
