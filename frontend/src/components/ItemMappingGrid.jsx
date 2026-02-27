@@ -1,26 +1,38 @@
 // src/components/ItemMappingGrid.jsx
 import './ItemMappingGrid.css';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { mappings as mappingApi, vouchers as voucherApi } from '../services/api';
 
-// ── Tally unit abbreviations ──────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Constants
+// ─────────────────────────────────────────────────────────────────────────────
+
+const GST_RATES = [0, 0.1, 0.25, 1, 1.5, 3, 5, 7.5, 12, 18, 28];
+
+const INDIAN_STATES = [
+  'Andaman and Nicobar Islands','Andhra Pradesh','Arunachal Pradesh','Assam','Bihar',
+  'Chandigarh','Chhattisgarh','Dadra and Nagar Haveli and Daman and Diu','Delhi',
+  'Goa','Gujarat','Haryana','Himachal Pradesh','Jammu and Kashmir','Jharkhand',
+  'Karnataka','Kerala','Ladakh','Lakshadweep','Madhya Pradesh','Maharashtra',
+  'Manipur','Meghalaya','Mizoram','Nagaland','Odisha','Puducherry','Punjab',
+  'Rajasthan','Sikkim','Tamil Nadu','Telangana','Tripura','Uttar Pradesh',
+  'Uttarakhand','West Bengal',
+];
+
 const UNIT_ABBR = {
-  'nos': '', 'pcs': '', 'numbers': '', 'number': '',
-  'box': 'b', 'boxes': 'b', 'bx': 'b',
-  'dozen': 'd', 'doz': 'd', 'dz': 'd',
-  'kg': 'k', 'kgs': 'k', 'kilogram': 'k', 'kilograms': 'k',
-  'gm': 'g', 'gram': 'g', 'grams': 'g',
-  'ltr': 'l', 'litre': 'l', 'litres': 'l', 'liter': 'l',
-  'mtr': 'm', 'meter': 'm', 'metre': 'm', 'meters': 'm',
-  'cm': 'c', 'ft': 'f', 'feet': 'f', 'inch': 'i', 'inches': 'i',
-  'pair': 'p', 'pairs': 'p', 'set': 's', 'sets': 's',
-  'carton': 'ct', 'ctn': 'ct',
-  'roll': 'r', 'rolls': 'r',
-  'pack': 'pk', 'packs': 'pk', 'packet': 'pk',
-  'bag': 'bg', 'bags': 'bg',
-  'bundle': 'bn', 'bundles': 'bn',
-  'tablet': 'tab', 'tablets': 'tab',
-  'strip': 'str', 'strips': 'str',
+  'nos':'','pcs':'','numbers':'','number':'',
+  'box':'b','boxes':'b','bx':'b',
+  'dozen':'d','doz':'d','dz':'d',
+  'kg':'k','kgs':'k','kilogram':'k','kilograms':'k',
+  'gm':'g','gram':'g','grams':'g',
+  'ltr':'l','litre':'l','litres':'l','liter':'l',
+  'mtr':'m','meter':'m','metre':'m','meters':'m',
+  'cm':'c','ft':'f','feet':'f','inch':'i','inches':'i',
+  'pair':'p','pairs':'p','set':'s','sets':'s',
+  'carton':'ct','ctn':'ct','roll':'r','rolls':'r',
+  'pack':'pk','packs':'pk','packet':'pk',
+  'bag':'bg','bags':'bg','bundle':'bn','bundles':'bn',
+  'tablet':'tab','tablets':'tab','strip':'str','strips':'str',
 };
 
 function getTallyQty(qty, primaryUnit, altUnit) {
@@ -30,66 +42,229 @@ function getTallyQty(qty, primaryUnit, altUnit) {
   return `${qty}${abbr}`;
 }
 
-const GST_RATES = [0, 0.1, 0.25, 1, 1.5, 3, 5, 7.5, 12, 18, 28];
+// ─────────────────────────────────────────────────────────────────────────────
+// Fuzzy match — score how well needle matches haystack (0-1)
+// Used for party name suggestion: "M/S. Jayesh Traders" → "Jayesh Traders"
+// ─────────────────────────────────────────────────────────────────────────────
+function fuzzyScore(needle, haystack) {
+  if (!needle || !haystack) return 0;
+  const n = needle.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+  const h = haystack.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+  if (h === n) return 1.0;
+  if (h.includes(n) || n.includes(h)) return 0.9;
 
-// ── Read session ledger config ─────────────────────────────────
-function getSessionConfig() {
-  try {
-    return JSON.parse(sessionStorage.getItem('ledger_config') || '{}');
-  } catch { return {}; }
+  // Word-overlap score
+  const nWords = n.split(/\s+/).filter(Boolean);
+  const hWords = h.split(/\s+/).filter(Boolean);
+  const overlap = nWords.filter((w) => hWords.some((hw) => hw.includes(w) || w.includes(hw)));
+  const score = overlap.length / Math.max(nWords.length, hWords.length);
+  return score;
 }
 
+function fuzzyMatchLedgers(partyName, ledgers, topN = 6) {
+  return ledgers
+    .map((l) => ({ name: l, score: fuzzyScore(partyName, l) }))
+    .filter((x) => x.score > 0.2)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, topN)
+    .map((x) => x.name);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Session helpers
+// ─────────────────────────────────────────────────────────────────────────────
+function getSessionConfig() {
+  try { return JSON.parse(sessionStorage.getItem('ledger_config') || '{}'); }
+  catch { return {}; }
+}
+
+function getRateWiseLedgers() {
+  // Shape: { "5": { cgst: "Input CGST 2.5%", sgst: "Input SGST 2.5%", igst: "Input IGST 5%" },
+  //          "18": { cgst: "Input CGST 9%",  sgst: "Input SGST 9%",  igst: "Input IGST 18%" } }
+  try { return JSON.parse(sessionStorage.getItem('rate_wise_ledgers') || '{}'); }
+  catch { return {}; }
+}
+
+// For a given gstRate, find the best matching ledger config
+// Falls back to default config if no rate-specific config found
+function getLedgersForRate(gstRate, rateWise, defaults) {
+  const key = String(gstRate);
+  if (rateWise[key]) return rateWise[key];
+  // Try partial match e.g. "5.0" → "5"
+  const alt = Object.keys(rateWise).find((k) => parseFloat(k) === parseFloat(gstRate));
+  if (alt) return rateWise[alt];
+  return defaults; // fallback
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Searchable ledger dropdown (for party name)
+// ─────────────────────────────────────────────────────────────────────────────
+function LedgerSearch({ ledgers, value, onChange, placeholder = 'Search ledger…', suggestions = [] }) {
+  const [query,    setQuery]    = useState(value || '');
+  const [open,     setOpen]     = useState(false);
+  const [focused,  setFocused]  = useState(false);
+  const ref = useRef();
+
+  useEffect(() => { setQuery(value || ''); }, [value]);
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const filtered = query.length >= 1
+    ? ledgers.filter((l) => l.toLowerCase().includes(query.toLowerCase())).slice(0, 10)
+    : suggestions.length ? suggestions : ledgers.slice(0, 10);
+
+  const select = (name) => { onChange(name); setQuery(name); setOpen(false); };
+
+  return (
+    <div ref={ref} style={{ position: 'relative', minWidth: 220 }}>
+      <input
+        className="cell-input"
+        style={{ width: '100%', paddingRight: 24 }}
+        value={query}
+        placeholder={placeholder}
+        onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+        onFocus={() => { setOpen(true); setFocused(true); }}
+        onBlur={() => setFocused(false)}
+      />
+      {query && (
+        <span
+          onClick={() => { onChange(''); setQuery(''); setOpen(false); }}
+          style={{ position:'absolute', right:6, top:'50%', transform:'translateY(-50%)',
+            cursor:'pointer', color:'var(--text-muted)', fontSize:14 }}>✕</span>
+      )}
+      {open && filtered.length > 0 && (
+        <div style={{
+          position:'absolute', top:'100%', left:0, right:0, zIndex:999,
+          background:'var(--bg-primary)', border:'1px solid var(--border)',
+          borderRadius:6, boxShadow:'0 4px 16px rgba(0,0,0,0.15)',
+          maxHeight:220, overflowY:'auto',
+        }}>
+          {suggestions.length > 0 && !query && (
+            <div style={{ padding:'4px 10px', fontSize:11, color:'var(--text-muted)',
+              borderBottom:'1px solid var(--border)', background:'var(--bg-secondary)' }}>
+              ⚡ Suggested matches
+            </div>
+          )}
+          {filtered.map((l) => (
+            <div key={l}
+              onMouseDown={() => select(l)}
+              style={{
+                padding:'7px 12px', cursor:'pointer', fontSize:13,
+                background: l === value ? 'var(--primary-light)' : 'transparent',
+                borderBottom:'1px solid var(--border-subtle)',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = l === value ? 'var(--primary-light)' : 'transparent'}
+            >
+              {l}
+              {suggestions.includes(l) && !query && (
+                <span style={{ marginLeft:6, fontSize:10, color:'var(--primary)', fontWeight:600 }}>MATCH</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main Component
+// ─────────────────────────────────────────────────────────────────────────────
 export default function ItemMappingGrid({
   invoice,
   tallyCompany,
   onMappingUpdate,
-  invoiceType    = 'purchase',   // 'purchase' | 'sales' | 'journal'
-  voucherTypeName = 'Purchase',  // exact name from Tally e.g. "Local Purchase"
+  invoiceType     = 'purchase',
+  voucherTypeName = 'Purchase',
 }) {
   const stockItems = (tallyCompany?.stock_items || []).map((s) => typeof s === 'string' ? s : s.name);
   const units      = (tallyCompany?.units       || []).map((u) => typeof u === 'string' ? u : u.name);
   const ledgers    = (tallyCompany?.ledgers     || []).map((l) => typeof l === 'string' ? l : l.name);
 
-  // Load saved config for ledger defaults
-  const sessionConfig = getSessionConfig();
+  const sessionConfig  = getSessionConfig();
+  const rateWiseLedgers = getRateWiseLedgers();
 
+  // ── Invoice-level fields (party, place of supply, GST type, GSTIN) ──────────
+  // Fuzzy-match supplier name against Tally ledgers on first render
+  const einvoiceParty    = invoice.supplier?.name   || invoice.buyer?.name || '';
+  const einvoiceGstin    = invoice.supplier?.gstin  || invoice.seller_gstin || '';
+  const einvoicePos      = invoice.place_of_supply  || invoice.pos || '';
+
+  const suggestedParties = fuzzyMatchLedgers(einvoiceParty, ledgers, 6);
+
+  const [partyLedger,    setPartyLedger]    = useState(suggestedParties[0] || einvoiceParty);
+  const [placeOfSupply,  setPlaceOfSupply]  = useState(einvoicePos || '');
+  const [isInterstate,   setIsInterstate]   = useState(invoice.is_interstate || false);
+  const [gstin,          setGstin]          = useState(einvoiceGstin);
+  const [showInvoiceInfo, setShowInvoiceInfo] = useState(true); // always visible on open
+
+  // ── Ledger settings ────────────────────────────────────────────
   const [settings, setSettings] = useState({
-    cgst_ledger:     sessionConfig.cgst_ledger     || 'Input CGST',
-    sgst_ledger:     sessionConfig.sgst_ledger     || 'Input SGST',
     igst_ledger:     sessionConfig.igst_ledger     || 'Input IGST',
     purchase_ledger: sessionConfig.purchase_ledger || 'Purchase',
-    is_interstate:   invoice.is_interstate || false,
+    roundoff_ledger: sessionConfig.roundoff_ledger || 'Round Off', // from Tally
+    freight_ledger:  sessionConfig.freight_ledger  || 'Freight Charges',
   });
   const [showSettings, setShowSettings] = useState(false);
+
+  // ── Rate-wise ledger panel state ───────────────────────────────
+  const [rateWise, setRateWise]         = useState(() => {
+    // Pre-populate from sessionStorage, then auto-detect rates from items
+    const saved = getRateWiseLedgers();
+    return saved;
+  });
+  const [showRateWise, setShowRateWise] = useState(false);
 
   // ── Item rows ──────────────────────────────────────────────────
   const [items, setItems] = useState(() =>
     (invoice.items || []).map((item, idx) => {
-      const qty     = parseFloat(item.quantity   ?? item.qty   ?? 0);
-      const rate    = parseFloat(item.rate       ?? item.price ?? 0);
-      const gstRate = parseFloat(item.gst_rate   ?? item.gstRate ?? 0);
-      const taxable = qty * rate;
-      const gstAmt  = (taxable * gstRate) / 100;
-
-      // Use actual values from invoice if present (e-invoice has exact amounts)
-      const cgst = parseFloat(item.cgst ?? gstAmt / 2);
-      const sgst = parseFloat(item.sgst ?? gstAmt / 2);
-      const igst = parseFloat(item.igst ?? 0);
+      const qty     = parseFloat(item.quantity ?? item.qty   ?? 0);
+      const rate    = parseFloat(item.rate     ?? item.price ?? 0);
+      const gstRate = parseFloat(item.gst_rate ?? item.gstRate ?? item.tax_rate ?? 0);
+      const taxable = parseFloat(item.taxable_amount ?? item.taxable ?? item.assAmt ?? (qty * rate));
+      const cgst    = parseFloat(item.cgst ?? 0);
+      const sgst    = parseFloat(item.sgst ?? 0);
+      const igst    = parseFloat(item.igst ?? 0);
+      const total   = parseFloat(item.total ?? item.total_amount ?? (taxable + cgst + sgst + igst));
 
       return {
         id: idx,
         desc:    item.description ?? item.desc ?? item.name ?? '',
-        hsn:     item.hsn         ?? item.hsn_code ?? '',
+        hsn:     item.hsn ?? item.hsn_code ?? '',
         qty, rate, gstRate,
         uom:     item.unit ?? item.uom ?? (units[0] || 'Nos'),
         altUnit: '',
-        taxable, cgst, sgst, igst,
-        total:   parseFloat(item.total ?? item.total_amount ?? (taxable + gstAmt)),
+        taxable, cgst, sgst, igst, total,
         mappedItem: null,
         saved: false,
       };
     })
   );
+
+  // Detect unique GST rates used in this invoice
+  const uniqueRates = [...new Set(items.map((i) => i.gstRate).filter(Boolean))].sort((a, b) => a - b);
+
+  // Auto-populate rateWise for rates that don't have a mapping yet
+  useEffect(() => {
+    setRateWise((prev) => {
+      const updated = { ...prev };
+      uniqueRates.forEach((r) => {
+        if (!updated[String(r)]) {
+          updated[String(r)] = {
+            cgst: sessionConfig.cgst_ledger || 'Input CGST',
+            sgst: sessionConfig.sgst_ledger || 'Input SGST',
+            igst: sessionConfig.igst_ledger || 'Input IGST',
+          };
+        }
+      });
+      return updated;
+    });
+  }, [invoice.invoice_no]);
 
   // ── Multi-select ───────────────────────────────────────────────
   const [selected,    setSelected]    = useState(new Set());
@@ -103,6 +278,17 @@ export default function ItemMappingGrid({
   const [xmlResult,    setXmlResult]    = useState(null);
   const [pushResult,   setPushResult]   = useState(null);
   const [xmlError,     setXmlError]     = useState(null);
+
+  // ── Auto-detect interstate from GSTIN ─────────────────────────
+  // If buyer's state code (pos) differs from seller's → interstate
+  useEffect(() => {
+    if (invoice.is_interstate !== undefined) return;
+    const sellerStateCode = einvoiceGstin?.substring(0, 2);
+    const buyerStateCode  = invoice.buyer?.gstin?.substring(0, 2);
+    if (sellerStateCode && buyerStateCode && sellerStateCode !== buyerStateCode) {
+      setIsInterstate(true);
+    }
+  }, []);
 
   // ── Fetch suggestions + DB mappings ────────────────────────────
   useEffect(() => {
@@ -132,7 +318,8 @@ export default function ItemMappingGrid({
         (res.data.mappings || []).forEach((m) => { dbMap[m.json_description] = m; });
         setItems((prev) => prev.map((item) => {
           if (!item.mappedItem && dbMap[item.desc])
-            return { ...item, mappedItem: dbMap[item.desc].tally_item_name, altUnit: dbMap[item.desc].alt_unit || '', saved: true };
+            return { ...item, mappedItem: dbMap[item.desc].tally_item_name,
+              altUnit: dbMap[item.desc].alt_unit || '', saved: true };
           return item;
         }));
       })
@@ -154,9 +341,9 @@ export default function ItemMappingGrid({
         const taxable = item.qty * item.rate;
         const gstAmt  = (taxable * item.gstRate) / 100;
         item.taxable  = taxable;
-        item.cgst     = gstAmt / 2;
-        item.sgst     = gstAmt / 2;
-        item.igst     = settings.is_interstate ? gstAmt : 0;
+        item.cgst     = isInterstate ? 0 : gstAmt / 2;
+        item.sgst     = isInterstate ? 0 : gstAmt / 2;
+        item.igst     = isInterstate ? gstAmt : 0;
         item.total    = taxable + gstAmt;
       }
       arr[idx] = item; return arr;
@@ -164,62 +351,98 @@ export default function ItemMappingGrid({
   };
 
   // ── Multi-select ───────────────────────────────────────────────
-  const toggleSelect = (idx) => {
-    setSelected((prev) => { const s = new Set(prev); s.has(idx) ? s.delete(idx) : s.add(idx); return s; });
-  };
-  const toggleAll = () => {
-    setSelected(selected.size === items.length ? new Set() : new Set(items.map((_, i) => i)));
-  };
+  const toggleSelect  = (idx) => setSelected((p) => { const s = new Set(p); s.has(idx) ? s.delete(idx) : s.add(idx); return s; });
+  const toggleAll     = () => setSelected(selected.size === items.length ? new Set() : new Set(items.map((_, i) => i)));
 
   const applyBulk = () => {
     setItems((prev) => prev.map((item, idx) => {
       if (!selected.has(idx)) return item;
-      const updated = { ...item };
-      if (bulkItem) updated.mappedItem = bulkItem;
+      const u = { ...item };
+      if (bulkItem) u.mappedItem = bulkItem;
       if (bulkGst) {
-        updated.gstRate = parseFloat(bulkGst);
-        const tax = updated.qty * updated.rate;
-        const g   = (tax * updated.gstRate) / 100;
-        updated.taxable = tax; updated.cgst = g/2; updated.sgst = g/2; updated.total = tax + g;
+        u.gstRate = parseFloat(bulkGst);
+        const tax = u.qty * u.rate;
+        const g   = (tax * u.gstRate) / 100;
+        u.taxable = tax; u.cgst = g / 2; u.sgst = g / 2; u.total = tax + g;
       }
-      if (bulkAltUnit) updated.altUnit = bulkAltUnit;
-      return updated;
+      if (bulkAltUnit) u.altUnit = bulkAltUnit;
+      return u;
     }));
     setBulkItem(''); setBulkGst(''); setBulkAltUnit('');
     setSelected(new Set());
   };
 
   // ── Build payload ──────────────────────────────────────────────
+  // Core of the new logic: per-item GST ledgers based on rate-wise config
   const buildPayload = () => {
     const mapped = items.filter((i) => i.mappedItem);
+
+    // Group items by GST rate → compute per-rate GST totals
+    const rateGroups = {};
+    mapped.forEach((item) => {
+      const key = String(item.gstRate);
+      if (!rateGroups[key]) rateGroups[key] = { cgst: 0, sgst: 0, igst: 0 };
+      rateGroups[key].cgst += item.cgst;
+      rateGroups[key].sgst += item.sgst;
+      rateGroups[key].igst += item.igst;
+    });
+
+    // Build gst_ledger_entries: list of { cgst_ledger, sgst_ledger, igst_ledger,
+    //                                     cgst_amount, sgst_amount, igst_amount }
+    // One entry per unique GST rate
+    const defaultLedgers = {
+      cgst: sessionConfig.cgst_ledger || 'Input CGST',
+      sgst: sessionConfig.sgst_ledger || 'Input SGST',
+      igst: settings.igst_ledger,
+    };
+
+    const gst_ledger_entries = Object.entries(rateGroups).map(([rate, amounts]) => {
+      const ledCfg = getLedgersForRate(rate, rateWise, defaultLedgers);
+      return {
+        gst_rate:     parseFloat(rate),
+        cgst_ledger:  ledCfg.cgst || defaultLedgers.cgst,
+        sgst_ledger:  ledCfg.sgst || defaultLedgers.sgst,
+        igst_ledger:  ledCfg.igst || defaultLedgers.igst,
+        cgst_amount:  amounts.cgst,
+        sgst_amount:  amounts.sgst,
+        igst_amount:  amounts.igst,
+      };
+    });
+
     return {
-      company_name:    tallyCompany.company_name,
-      invoice_no:      invoice.invoice_no,
-      invoice_date:    invoice.invoice_date,
-      supplier_ledger: invoice.supplier?.name ?? 'Supplier',
-      voucher_type:    voucherTypeName,   // ← passes selected voucher type to backend
+      company_name:       tallyCompany.company_name,
+      invoice_no:         invoice.invoice_no,
+      invoice_date:       invoice.invoice_date,
+      supplier_ledger:    partyLedger,         // ← TALLY ledger name, not e-invoice name
+      supplier_gstin:     gstin,
+      place_of_supply:    placeOfSupply,
+      voucher_type:       voucherTypeName,
       items: mapped.map((i) => ({
         stock_item: i.mappedItem,
         quantity:   i.altUnit ? getTallyQty(i.qty, i.uom, i.altUnit) : i.qty,
         unit:       i.altUnit || i.uom,
         rate:       i.rate,
         amount:     i.taxable,
+        gst_rate:   i.gstRate,
       })),
-      is_interstate:   settings.is_interstate,
-      // Per-item GST totals summed here
-      cgst_total:      mapped.reduce((s, i) => s + i.cgst, 0),
-      sgst_total:      mapped.reduce((s, i) => s + i.sgst, 0),
-      igst_total:      settings.is_interstate ? mapped.reduce((s, i) => s + i.igst, 0) : 0,
-      cgst_ledger:     settings.cgst_ledger,
-      sgst_ledger:     settings.sgst_ledger,
-      igst_ledger:     settings.igst_ledger,
-      purchase_ledger: settings.purchase_ledger,
-      other_charges:   parseFloat(invoice.other_charges || 0),
-      round_off:       parseFloat(invoice.round_off     || 0),
+      is_interstate:      isInterstate,
+      // Legacy flat totals (for single-rate invoices / backward compat)
+      cgst_total:         mapped.reduce((s, i) => s + i.cgst, 0),
+      sgst_total:         mapped.reduce((s, i) => s + i.sgst, 0),
+      igst_total:         isInterstate ? mapped.reduce((s, i) => s + i.igst, 0) : 0,
+      // NEW: rate-wise ledger entries (backend will use this if present)
+      gst_ledger_entries,
+      // Ledgers
+      purchase_ledger:    settings.purchase_ledger,
+      igst_ledger:        settings.igst_ledger,
+      roundoff_ledger:    settings.roundoff_ledger,
+      freight_ledger:     settings.freight_ledger,
+      other_charges:      parseFloat(invoice.other_charges || 0),
+      round_off:          parseFloat(invoice.round_off     || 0),
     };
   };
 
-  // ── Save mappings to DB ────────────────────────────────────────
+  // ── Save mappings ──────────────────────────────────────────────
   const handleSave = async () => {
     const toSave = items.filter((i) => i.mappedItem && !i.saved);
     if (!toSave.length) { alert('No new mappings to save'); return; }
@@ -227,7 +450,7 @@ export default function ItemMappingGrid({
     try {
       await Promise.all(toSave.map((item) =>
         mappingApi.save({
-          company_id:       tallyCompany.id,
+          company_id: tallyCompany.id,
           json_description: item.desc,
           tally_item_name:  item.mappedItem,
           alt_unit:         item.altUnit || '',
@@ -235,7 +458,7 @@ export default function ItemMappingGrid({
         })
       ));
       setItems((prev) => prev.map((i) => i.mappedItem ? { ...i, saved: true } : i));
-      alert(`✅ ${toSave.length} mapping(s) saved to DB`);
+      alert(`✅ ${toSave.length} mapping(s) saved`);
     } catch (e) {
       alert('Save failed: ' + (e.response?.data?.detail || e.message));
     } finally { setSaving(false); }
@@ -243,41 +466,37 @@ export default function ItemMappingGrid({
 
   const handleGenerate = async () => {
     if (!items.some((i) => i.mappedItem)) { alert('Map at least one item first'); return; }
+    if (!partyLedger) { alert('Select Party/Supplier ledger first'); return; }
     setXmlError(null); setXmlResult(null);
     try { const r = await voucherApi.generate(buildPayload()); setXmlResult(r.data); }
     catch (e) { setXmlError(e.response?.data?.detail || e.message); }
   };
 
-  // FIX: proper blob handling — check response type, create object URL correctly
   const handleDownloadXml = async () => {
     if (!items.some((i) => i.mappedItem)) return;
+    if (!partyLedger) { alert('Select Party/Supplier ledger first'); return; }
     setXmlError(null);
     try {
       const res = await voucherApi.download(buildPayload());
-      // res.data is a Blob because responseType: 'blob' is set in api.js
-      const blob = res.data instanceof Blob
-        ? res.data
-        : new Blob([res.data], { type: 'application/xml' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      const supplierSlug = (invoice.supplier?.name || 'supplier').replace(/[^a-z0-9]/gi, '_').substring(0, 30);
-      a.setAttribute('download', `${voucherTypeName}_${invoice.invoice_no}_${supplierSlug}.xml`);
+      const blob = res.data instanceof Blob ? res.data : new Blob([res.data], { type: 'application/xml' });
+      const url  = window.URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      const slug = partyLedger.replace(/[^a-z0-9]/gi, '_').substring(0, 25);
+      a.setAttribute('download', `${voucherTypeName}_${invoice.invoice_no}_${slug}.xml`);
       document.body.appendChild(a); a.click(); a.remove();
       window.URL.revokeObjectURL(url);
     } catch (e) {
-      const errMsg = e.response?.data
-        ? (typeof e.response.data === 'string'
-            ? e.response.data
-            : (await e.response.data.text?.() || 'Download failed'))
+      const msg = e.response?.data
+        ? (typeof e.response.data === 'string' ? e.response.data : (await e.response.data.text?.() || 'Download failed'))
         : e.message;
-      setXmlError('XML download failed: ' + errMsg);
-      console.error(e);
+      setXmlError('XML download failed: ' + msg);
     }
   };
 
   const handlePush = async () => {
     if (!items.some((i) => i.mappedItem)) return;
+    if (!partyLedger) { alert('Select Party/Supplier ledger first'); return; }
     setPushResult(null);
     try { const r = await voucherApi.generateAndSend(buildPayload()); setPushResult(r.data); }
     catch (e) { alert('Push failed: ' + (e.response?.data?.detail || e.message)); }
@@ -290,22 +509,26 @@ export default function ItemMappingGrid({
   return (
     <div className="item-grid-wrap">
 
-      {/* Toolbar */}
+      {/* ── TOOLBAR ── */}
       <div className="grid-toolbar">
         <div>
           <strong>{invoice.invoice_no}</strong>
-          <span className="muted"> — {invoice.supplier?.name}</span>
-          <span style={{
-            marginLeft: 10, fontSize: 12, padding: '2px 8px',
-            background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 5,
-          }}>
+          <span className="muted"> — {einvoiceParty}</span>
+          <span style={{ marginLeft:10, fontSize:12, padding:'2px 8px',
+            background:'var(--bg-secondary)', border:'1px solid var(--border)', borderRadius:5 }}>
             {invoiceType === 'purchase' ? '🛒' : invoiceType === 'sales' ? '💰' : '📓'}&nbsp;{voucherTypeName}
           </span>
           {loadingSugg && <span className="sugg-loading"> ⚡ loading suggestions…</span>}
         </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+          <button className="btn btn-outline btn-sm" onClick={() => setShowInvoiceInfo(!showInvoiceInfo)}>
+            🏢 Party & GST {showInvoiceInfo ? '▲' : '▼'}
+          </button>
+          <button className="btn btn-outline btn-sm" onClick={() => setShowRateWise(!showRateWise)}>
+            📊 Rate Ledgers {showRateWise ? '▲' : '▼'}
+          </button>
           <button className="btn btn-outline btn-sm" onClick={() => setShowSettings(!showSettings)}>
-            ⚙️ Ledgers
+            ⚙️ Ledgers {showSettings ? '▲' : '▼'}
           </button>
           <button className="btn btn-outline btn-sm" onClick={handleSave} disabled={saving || !mappedCount}>
             {saving ? 'Saving…' : '💾 Save Mappings'}
@@ -322,70 +545,269 @@ export default function ItemMappingGrid({
         </div>
       </div>
 
-      {/* Ledger Settings Panel */}
-      {showSettings && (
-        <div className="settings-panel-inline">
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-            {[
-              { k: 'cgst_ledger',     l: 'CGST' },
-              { k: 'sgst_ledger',     l: 'SGST' },
-              { k: 'igst_ledger',     l: 'IGST' },
-              { k: 'purchase_ledger', l: invoiceType === 'sales' ? 'Sales Account' : 'Purchase Account' },
-            ].map(({ k, l }) => (
-              <div key={k} className="form-group" style={{ marginBottom: 0, minWidth: 170 }}>
-                <label className="form-label">{l} Ledger</label>
-                <select
-                  className="form-control"
-                  value={settings[k]}
-                  onChange={(e) => setSettings((p) => ({ ...p, [k]: e.target.value }))}
-                >
-                  <option value={settings[k]}>{settings[k]}</option>
-                  {ledgers.filter((l) => l !== settings[k]).map((l) => <option key={l}>{l}</option>)}
-                </select>
-              </div>
-            ))}
-            <div className="form-group" style={{ marginBottom: 0 }}>
+      {/* ── PARTY & GST INFO PANEL ── */}
+      {showInvoiceInfo && (
+        <div className="settings-panel-inline" style={{ borderColor: partyLedger ? 'var(--success)' : 'var(--warning)' }}>
+          <div style={{ display:'flex', gap:4, alignItems:'center', marginBottom:10 }}>
+            <span style={{ fontWeight:600, fontSize:13 }}>🏢 Party / Invoice Details</span>
+            {!partyLedger && (
+              <span style={{ fontSize:11, color:'var(--danger)', fontWeight:600,
+                padding:'2px 8px', background:'#fee2e2', borderRadius:4 }}>
+                ⚠️ Party ledger required before generating XML
+              </span>
+            )}
+          </div>
+
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(220px,1fr))', gap:12 }}>
+
+            {/* Party Ledger — with fuzzy search */}
+            <div className="form-group" style={{ marginBottom:0, gridColumn:'span 2' }}>
+              <label className="form-label">
+                Party / Supplier Ledger (from Tally)
+                <span style={{ marginLeft:6, fontSize:10, color:'var(--text-muted)' }}>
+                  e-invoice: "{einvoiceParty}"
+                </span>
+              </label>
+              <LedgerSearch
+                ledgers={ledgers}
+                value={partyLedger}
+                onChange={setPartyLedger}
+                placeholder={`Search Tally ledger… (from "${einvoiceParty}")`}
+                suggestions={suggestedParties}
+              />
+              {suggestedParties.length > 0 && !partyLedger && (
+                <div style={{ display:'flex', gap:6, marginTop:6, flexWrap:'wrap' }}>
+                  {suggestedParties.slice(0, 4).map((s) => (
+                    <button key={s} className="sugg-chip"
+                      onClick={() => setPartyLedger(s)}
+                      title="Click to select this Tally ledger">
+                      ⚡ {s}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {partyLedger && (
+                <div style={{ fontSize:11, marginTop:4, color:'var(--success)' }}>
+                  ✅ XML will use: <strong>{partyLedger}</strong>
+                </div>
+              )}
+            </div>
+
+            {/* GSTIN — from e-invoice, read-only but editable */}
+            <div className="form-group" style={{ marginBottom:0 }}>
+              <label className="form-label">
+                Supplier GSTIN
+                <span style={{ marginLeft:6, fontSize:10, color:'var(--text-muted)' }}>(from e-invoice)</span>
+              </label>
+              <input
+                className="form-control"
+                value={gstin}
+                onChange={(e) => setGstin(e.target.value)}
+                placeholder="22AAAAA0000A1Z5"
+                style={{ fontFamily:'monospace', fontSize:13, letterSpacing:1 }}
+              />
+            </div>
+
+            {/* GST Type */}
+            <div className="form-group" style={{ marginBottom:0 }}>
               <label className="form-label">GST Type</label>
+              <div style={{ display:'flex', gap:8 }}>
+                <button
+                  className={`btn btn-sm ${!isInterstate ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => setIsInterstate(false)}>
+                  Intrastate (CGST+SGST)
+                </button>
+                <button
+                  className={`btn btn-sm ${isInterstate ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => setIsInterstate(true)}>
+                  Interstate (IGST)
+                </button>
+              </div>
+              <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:3 }}>
+                {isInterstate ? '→ XML will use IGST ledger' : '→ XML will use CGST + SGST ledgers'}
+              </div>
+            </div>
+
+            {/* Place of Supply */}
+            <div className="form-group" style={{ marginBottom:0 }}>
+              <label className="form-label">Place of Supply</label>
               <select
-                className="form-control" style={{ width: 180 }}
-                value={settings.is_interstate ? 'igst' : 'cgst'}
-                onChange={(e) => setSettings((p) => ({ ...p, is_interstate: e.target.value === 'igst' }))}
+                className="form-control"
+                value={placeOfSupply}
+                onChange={(e) => setPlaceOfSupply(e.target.value)}
               >
-                <option value="cgst">Intrastate (CGST+SGST)</option>
-                <option value="igst">Interstate (IGST)</option>
+                <option value="">— Select State —</option>
+                {INDIAN_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
+
           </div>
         </div>
       )}
 
-      {/* Bulk actions bar */}
+      {/* ── RATE-WISE GST LEDGER PANEL ── */}
+      {showRateWise && (
+        <div className="settings-panel-inline" style={{ borderColor:'var(--primary)' }}>
+          <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:10 }}>
+            <span style={{ fontWeight:600, fontSize:13 }}>📊 Rate-wise GST Ledgers</span>
+            <span style={{ fontSize:11, color:'var(--text-muted)' }}>
+              Map each GST rate to its Tally ledger pair — e.g. 5% → CGST @2.5%, 18% → CGST @9%
+            </span>
+          </div>
+
+          {uniqueRates.length === 0 && (
+            <div style={{ fontSize:12, color:'var(--text-muted)', padding:'8px 0' }}>
+              No GST rates detected in this invoice's items.
+            </div>
+          )}
+
+          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+            {uniqueRates.map((rate) => {
+              const key = String(rate);
+              const cfg = rateWise[key] || { cgst: '', sgst: '', igst: '' };
+              const itemsWithRate = items.filter((i) => i.gstRate === rate);
+              const cgstAmt = itemsWithRate.reduce((s, i) => s + i.cgst, 0);
+              const sgstAmt = itemsWithRate.reduce((s, i) => s + i.sgst, 0);
+              const igstAmt = itemsWithRate.reduce((s, i) => s + i.igst, 0);
+
+              return (
+                <div key={key} style={{
+                  border:'1px solid var(--border)', borderRadius:8, padding:'10px 14px',
+                  background:'var(--bg-secondary)',
+                }}>
+                  <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:8 }}>
+                    <span style={{ fontWeight:700, fontSize:14, minWidth:60 }}>{rate}% GST</span>
+                    <span style={{ fontSize:11, color:'var(--text-muted)' }}>
+                      {itemsWithRate.length} item(s) — CGST ₹{cgstAmt.toFixed(2)} | SGST ₹{sgstAmt.toFixed(2)} | IGST ₹{igstAmt.toFixed(2)}
+                    </span>
+                  </div>
+                  <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+                    {!isInterstate ? (
+                      <>
+                        <div className="form-group" style={{ marginBottom:0, minWidth:200 }}>
+                          <label className="form-label">CGST Ledger for {rate}%</label>
+                          <select className="form-control" value={cfg.cgst}
+                            onChange={(e) => setRateWise((p) => ({ ...p, [key]: { ...cfg, cgst: e.target.value } }))}>
+                            <option value="">— Select —</option>
+                            {ledgers.map((l) => <option key={l} value={l}>{l}</option>)}
+                          </select>
+                        </div>
+                        <div className="form-group" style={{ marginBottom:0, minWidth:200 }}>
+                          <label className="form-label">SGST Ledger for {rate}%</label>
+                          <select className="form-control" value={cfg.sgst}
+                            onChange={(e) => setRateWise((p) => ({ ...p, [key]: { ...cfg, sgst: e.target.value } }))}>
+                            <option value="">— Select —</option>
+                            {ledgers.map((l) => <option key={l} value={l}>{l}</option>)}
+                          </select>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="form-group" style={{ marginBottom:0, minWidth:200 }}>
+                        <label className="form-label">IGST Ledger for {rate}%</label>
+                        <select className="form-control" value={cfg.igst}
+                          onChange={(e) => setRateWise((p) => ({ ...p, [key]: { ...cfg, igst: e.target.value } }))}>
+                          <option value="">— Select —</option>
+                          {ledgers.map((l) => <option key={l} value={l}>{l}</option>)}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <button className="btn btn-outline btn-sm" style={{ marginTop:10 }}
+            onClick={() => {
+              sessionStorage.setItem('rate_wise_ledgers', JSON.stringify(rateWise));
+              alert('✅ Rate-wise ledger config saved to session');
+            }}>
+            💾 Save Rate Config to Session
+          </button>
+        </div>
+      )}
+
+      {/* ── LEDGER SETTINGS PANEL ── */}
+      {showSettings && (
+        <div className="settings-panel-inline">
+          <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'flex-end' }}>
+
+            {/* IGST ledger (for single-rate or interstate fallback) */}
+            <div className="form-group" style={{ marginBottom:0, minWidth:170 }}>
+              <label className="form-label">IGST Ledger (fallback)</label>
+              <select className="form-control" value={settings.igst_ledger}
+                onChange={(e) => setSettings((p) => ({ ...p, igst_ledger: e.target.value }))}>
+                <option value={settings.igst_ledger}>{settings.igst_ledger}</option>
+                {ledgers.filter((l) => l !== settings.igst_ledger).map((l) => <option key={l}>{l}</option>)}
+              </select>
+            </div>
+
+            {/* Purchase ledger */}
+            <div className="form-group" style={{ marginBottom:0, minWidth:170 }}>
+              <label className="form-label">{invoiceType === 'sales' ? 'Sales Account' : 'Purchase Account'} Ledger</label>
+              <select className="form-control" value={settings.purchase_ledger}
+                onChange={(e) => setSettings((p) => ({ ...p, purchase_ledger: e.target.value }))}>
+                <option value={settings.purchase_ledger}>{settings.purchase_ledger}</option>
+                {ledgers.filter((l) => l !== settings.purchase_ledger).map((l) => <option key={l}>{l}</option>)}
+              </select>
+            </div>
+
+            {/* Round Off ledger — CRITICAL: from Tally, not hardcoded */}
+            <div className="form-group" style={{ marginBottom:0, minWidth:170 }}>
+              <label className="form-label">
+                Round Off Ledger
+                <span style={{ marginLeft:4, fontSize:10, color:'var(--text-muted)' }}>(from Tally)</span>
+              </label>
+              <select className="form-control" value={settings.roundoff_ledger}
+                onChange={(e) => setSettings((p) => ({ ...p, roundoff_ledger: e.target.value }))}>
+                <option value={settings.roundoff_ledger}>{settings.roundoff_ledger}</option>
+                {ledgers.filter((l) => l !== settings.roundoff_ledger).map((l) => <option key={l}>{l}</option>)}
+              </select>
+            </div>
+
+            {/* Freight/Other Charges ledger */}
+            <div className="form-group" style={{ marginBottom:0, minWidth:170 }}>
+              <label className="form-label">
+                Freight / Charges Ledger
+                <span style={{ marginLeft:4, fontSize:10, color:'var(--text-muted)' }}>(from Tally)</span>
+              </label>
+              <select className="form-control" value={settings.freight_ledger}
+                onChange={(e) => setSettings((p) => ({ ...p, freight_ledger: e.target.value }))}>
+                <option value={settings.freight_ledger}>{settings.freight_ledger}</option>
+                {ledgers.filter((l) => l !== settings.freight_ledger).map((l) => <option key={l}>{l}</option>)}
+              </select>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ── BULK ACTIONS BAR ── */}
       {selected.size > 0 && (
         <div className="bulk-bar">
           <span className="muted">{selected.size} selected</span>
-          <select className="cell-select" value={bulkItem} onChange={(e) => setBulkItem(e.target.value)} style={{ minWidth: 180 }}>
+          <select className="cell-select" value={bulkItem} onChange={(e) => setBulkItem(e.target.value)} style={{ minWidth:180 }}>
             <option value="">— Bulk Map Item —</option>
             {stockItems.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
-          <select className="cell-select" value={bulkGst} onChange={(e) => setBulkGst(e.target.value)} style={{ width: 90 }}>
+          <select className="cell-select" value={bulkGst} onChange={(e) => setBulkGst(e.target.value)} style={{ width:90 }}>
             <option value="">— GST % —</option>
             {GST_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
           </select>
-          <select className="cell-select" value={bulkAltUnit} onChange={(e) => setBulkAltUnit(e.target.value)} style={{ width: 120 }}>
+          <select className="cell-select" value={bulkAltUnit} onChange={(e) => setBulkAltUnit(e.target.value)} style={{ width:120 }}>
             <option value="">— Alt Unit —</option>
             {units.map((u) => <option key={u} value={u}>{u}</option>)}
           </select>
-          <button className="btn btn-primary btn-sm" onClick={applyBulk}
-            disabled={!bulkItem && !bulkGst && !bulkAltUnit}>Apply</button>
+          <button className="btn btn-primary btn-sm" onClick={applyBulk} disabled={!bulkItem && !bulkGst && !bulkAltUnit}>Apply</button>
           <button className="btn btn-outline btn-sm" onClick={() => setSelected(new Set())}>Clear</button>
         </div>
       )}
 
-      {/* Banners */}
+      {/* ── BANNERS ── */}
       {pushResult?.success && <div className="alert alert-success">✅ {pushResult.message}</div>}
       {xmlError             && <div className="alert alert-error">⚠️ {xmlError}</div>}
 
-      {/* XML Preview */}
+      {/* ── XML PREVIEW ── */}
       {xmlResult && (
         <div className="xml-preview">
           <div className="xml-preview-header">
@@ -397,16 +819,12 @@ export default function ItemMappingGrid({
         </div>
       )}
 
-      {/* Table */}
+      {/* ── ITEM TABLE ── */}
       <div className="table-scroll">
         <table className="mapping-table">
           <thead>
             <tr>
-              <th>
-                <input type="checkbox"
-                  checked={selected.size === items.length && items.length > 0}
-                  onChange={toggleAll} title="Select all" />
-              </th>
+              <th><input type="checkbox" checked={selected.size === items.length && items.length > 0} onChange={toggleAll} /></th>
               <th>#</th>
               <th>Description</th>
               <th>HSN</th>
@@ -416,7 +834,7 @@ export default function ItemMappingGrid({
               <th>Rate (₹)</th>
               <th>Taxable</th>
               <th>GST %</th>
-              {settings.is_interstate
+              {isInterstate
                 ? <th>IGST</th>
                 : <><th>CGST</th><th>SGST</th></>
               }
@@ -428,14 +846,19 @@ export default function ItemMappingGrid({
             {items.map((item, idx) => {
               const sugg     = suggestions[item.desc];
               const tallyQty = getTallyQty(item.qty, item.uom, item.altUnit);
+              // Show which ledger will be used for this item's rate
+              const itemRateKey = String(item.gstRate);
+              const ledCfg = rateWise[itemRateKey];
+              const ledgerHint = ledCfg
+                ? (isInterstate ? ledCfg.igst : `${ledCfg.cgst} / ${ledCfg.sgst}`)
+                : null;
+
               return (
                 <tr key={idx} className={item.mappedItem ? (item.saved ? 'row-saved' : 'row-mapped') : 'row-pending'}>
-                  <td>
-                    <input type="checkbox" checked={selected.has(idx)} onChange={() => toggleSelect(idx)} />
-                  </td>
+                  <td><input type="checkbox" checked={selected.has(idx)} onChange={() => toggleSelect(idx)} /></td>
                   <td className="muted">{idx + 1}</td>
                   <td><span className="desc-cell" title={item.desc}>{item.desc || '—'}</span></td>
-                  <td><code style={{ fontSize: 11 }}>{item.hsn || '—'}</code></td>
+                  <td><code style={{ fontSize:11 }}>{item.hsn || '—'}</code></td>
 
                   <td>
                     <input className="cell-input" type="number" value={item.qty}
@@ -444,17 +867,13 @@ export default function ItemMappingGrid({
                   </td>
 
                   <td>
-                    <select className="cell-select" value={item.uom}
-                      onChange={(e) => updateItem(idx, 'uom', e.target.value)}>
-                      {units.length
-                        ? units.map((u) => <option key={u} value={u}>{u}</option>)
-                        : <option value={item.uom}>{item.uom}</option>}
+                    <select className="cell-select" value={item.uom} onChange={(e) => updateItem(idx, 'uom', e.target.value)}>
+                      {units.length ? units.map((u) => <option key={u} value={u}>{u}</option>) : <option value={item.uom}>{item.uom}</option>}
                     </select>
                   </td>
 
                   <td>
-                    <select className="cell-select" value={item.altUnit}
-                      onChange={(e) => updateItem(idx, 'altUnit', e.target.value)}>
+                    <select className="cell-select" value={item.altUnit} onChange={(e) => updateItem(idx, 'altUnit', e.target.value)}>
                       <option value="">— none —</option>
                       {units.filter((u) => u !== item.uom).map((u) => <option key={u} value={u}>{u}</option>)}
                     </select>
@@ -464,13 +883,19 @@ export default function ItemMappingGrid({
                   <td className="num">{item.taxable.toFixed(2)}</td>
 
                   <td>
-                    <select className="cell-select" style={{ width: 68 }} value={item.gstRate}
+                    <select className="cell-select" style={{ width:68 }} value={item.gstRate}
                       onChange={(e) => updateItem(idx, 'gstRate', parseFloat(e.target.value))}>
                       {GST_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
                     </select>
+                    {ledgerHint && (
+                      <div style={{ fontSize:10, color:'var(--primary)', marginTop:2, maxWidth:100, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}
+                        title={ledgerHint}>
+                        {ledgerHint}
+                      </div>
+                    )}
                   </td>
 
-                  {settings.is_interstate
+                  {isInterstate
                     ? <td className="num">{item.igst.toFixed(2)}</td>
                     : <><td className="num">{item.cgst.toFixed(2)}</td><td className="num">{item.sgst.toFixed(2)}</td></>
                   }
@@ -503,10 +928,16 @@ export default function ItemMappingGrid({
         </table>
       </div>
 
-      {/* Footer */}
+      {/* ── FOOTER ── */}
       <div className="grid-footer">
         <span>{items.length} items | {mappedCount} mapped | {items.length - mappedCount} pending</span>
-        <strong>₹{grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+        <span>
+          {!partyLedger && <span style={{ color:'var(--danger)', marginRight:10, fontSize:12 }}>⚠️ Set party ledger!</span>}
+          Party: <strong>{partyLedger || '—'}</strong>
+          {placeOfSupply && <> | POS: <strong>{placeOfSupply}</strong></>}
+          {gstin && <> | GSTIN: <code style={{ fontSize:11 }}>{gstin}</code></>}
+        </span>
+        <strong>₹{grandTotal.toLocaleString('en-IN', { minimumFractionDigits:2 })}</strong>
       </div>
     </div>
   );
