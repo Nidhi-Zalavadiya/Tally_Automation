@@ -1,37 +1,54 @@
+// src/components/Settings.jsx
 import React, { useState, useEffect } from 'react';
-import api,{ tally } from '../services/api' // Ensure 'api' is imported for saving
+import { tally } from '../services/api';
 import './Settings.css';
 
 const Settings = ({ companies = [] }) => {
-  // 1. NORMALIZE DATA (Same logic as your working Companies.jsx)
-  const safeCompanies = Array.isArray(companies) 
-    ? companies 
-    : (companies && typeof companies === 'object' && Array.isArray(companies.companies))
-      ? companies.companies 
-      : [];
+  // Normalize companies
+  const safeCompanies = Array.isArray(companies)
+    ? companies
+    : (companies?.companies || []);
 
-  const [selectedCompany, setSelectedCompany] = useState('');
+  const [selectedCompany,  setSelectedCompany]  = useState('');
+  const [liveledgers,      setLiveLedgers]      = useState([]);
+  const [loading,          setLoading]          = useState(false);
+  const [saved,            setSaved]            = useState(false);
+
+  // ── Ledger config ─────────────────────────────────────────────
   const [config, setConfig] = useState({
     cgst_ledger:     'Input CGST',
     sgst_ledger:     'Input SGST',
     igst_ledger:     'Input IGST',
     purchase_ledger: 'Purchase',
   });
-  const [liveledgers, setLiveLedgers] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [saved, setSaved]     = useState(false);
 
-  // 2. SYNC STATE (Use safeCompanies)
+  // ── Voucher type config ───────────────────────────────────────
+  // Users can define their own Tally voucher type names here.
+  // These are stored in sessionStorage so ItemMappingGrid can read them.
+  const [voucherTypes, setVoucherTypes] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('voucher_types');
+      return saved ? JSON.parse(saved) : {
+        purchase: ['Purchase'],        // list of purchase voucher type names in their Tally
+        sales:    ['Sales'],
+        journal:  ['Journal'],
+      };
+    } catch { return { purchase: ['Purchase'], sales: ['Sales'], journal: ['Journal'] }; }
+  });
+
+  const [newVoucherType, setNewVoucherType] = useState({ category: 'purchase', name: '' });
+
+  // Sync on company change
   useEffect(() => {
     if (safeCompanies.length > 0 && !selectedCompany) {
       const firstCo = safeCompanies[0];
       setSelectedCompany(firstCo.company_name);
-      const initialLedgers = (firstCo.ledgers || []).map(l => 
+      const initialLedgers = (firstCo.ledgers || []).map((l) =>
         typeof l === 'string' ? l : l.name
       );
       setLiveLedgers(initialLedgers);
     }
-  }, [safeCompanies, selectedCompany]);
+  }, [safeCompanies]);
 
   const handleCompanyChange = (name) => {
     setSelectedCompany(name);
@@ -44,7 +61,9 @@ const Settings = ({ companies = [] }) => {
     setLoading(true);
     try {
       const res = await tally.connect(selectedCompany);
-      const newLedgers = (res.data.ledgers || []).map((l) => (typeof l === 'string' ? l : l.name));
+      const newLedgers = (res.data.ledgers || []).map((l) =>
+        typeof l === 'string' ? l : l.name
+      );
       setLiveLedgers(newLedgers);
     } catch (e) {
       alert('Tally fetch failed: ' + (e.response?.data?.detail || e.message));
@@ -53,30 +72,35 @@ const Settings = ({ companies = [] }) => {
     }
   };
 
-  // 3. FIX THE 422 ERROR: Actually send data to the backend
-  const handleSave = async () => {
+  // Save ledger config to sessionStorage (used by ItemMappingGrid)
+  const handleSave = () => {
     try {
-      setLoading(true);
-      const activeCompany = safeCompanies.find(c => c.company_name === selectedCompany);
-      
-      const payload = {
-        company_id: activeCompany?.id,
-        company_name: selectedCompany,
-        ...config
-      };
-
-      // Replace this URL with your actual mapping save endpoint
-      await api.post('/api/mappings/save', payload); 
-      
+      sessionStorage.setItem('ledger_config', JSON.stringify({ ...config, selectedCompany }));
+      sessionStorage.setItem('voucher_types', JSON.stringify(voucherTypes));
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (e) {
-      // Improved error logging to catch why the 422 is happening
-      console.error("Save Error Detail:", e.response?.data);
-      alert('Save failed: ' + (e.response?.data?.detail?.[0]?.msg || 'Check console for validation errors'));
-    } finally {
-      setLoading(false);
+      alert('Could not save settings');
     }
+  };
+
+  // Add a voucher type to a category
+  const addVoucherType = () => {
+    const name = newVoucherType.name.trim();
+    if (!name) return;
+    const cat = newVoucherType.category;
+    setVoucherTypes((prev) => ({
+      ...prev,
+      [cat]: prev[cat].includes(name) ? prev[cat] : [...prev[cat], name],
+    }));
+    setNewVoucherType((p) => ({ ...p, name: '' }));
+  };
+
+  const removeVoucherType = (cat, name) => {
+    setVoucherTypes((prev) => ({
+      ...prev,
+      [cat]: prev[cat].filter((v) => v !== name),
+    }));
   };
 
   const FIELDS = [
@@ -86,14 +110,21 @@ const Settings = ({ companies = [] }) => {
     { key: 'purchase_ledger', label: 'Purchase Account',   desc: 'Default purchase ledger in Tally' },
   ];
 
-  // 4. GUARD CLAUSE (Use safeCompanies)
+  const VOUCHER_CATEGORIES = [
+    { key: 'purchase', label: '🛒 Purchase', desc: 'e.g. Purchase, Local Purchase, Import Purchase' },
+    { key: 'sales',    label: '💰 Sales',    desc: 'e.g. Sales, Export Sales, Retail Sales'         },
+    { key: 'journal',  label: '📓 Journal',  desc: 'e.g. Journal, Contra, Debit Note'               },
+  ];
+
   if (safeCompanies.length === 0) {
     return (
       <div className="settings-page">
         <div className="card">
           <div className="card-body" style={{ textAlign: 'center', padding: '40px' }}>
             <p style={{ fontSize: '1.2rem', marginBottom: '10px' }}>⚠️ No companies connected.</p>
-            <p className="text-muted">Please go to <b>Tally Connect</b> to link your Tally company first.</p>
+            <p className="text-muted">
+              Please go to <b>Tally Connect</b> to link your Tally company first.
+            </p>
           </div>
         </div>
       </div>
@@ -102,7 +133,8 @@ const Settings = ({ companies = [] }) => {
 
   return (
     <div className="settings-page">
-      {/* ... (Keep your existing return JSX exactly as it was) ... */}
+
+      {/* ── Company selector ── */}
       <div className="card" style={{ marginBottom: 20 }}>
         <div className="card-header">
           <h3 className="card-title">🔌 Tally Connection</h3>
@@ -121,14 +153,19 @@ const Settings = ({ companies = [] }) => {
                 ))}
               </select>
             </div>
-            <button className="btn btn-outline" onClick={handleRefetch} disabled={!selectedCompany || loading}>
+            <button
+              className="btn btn-outline"
+              onClick={handleRefetch}
+              disabled={!selectedCompany || loading}
+            >
               {loading ? 'Loading…' : '↺ Reload Ledgers'}
             </button>
           </div>
         </div>
       </div>
 
-      <div className="card">
+      {/* ── Tax Ledger Mapping ── */}
+      <div className="card" style={{ marginBottom: 20 }}>
         <div className="card-header">
           <h3 className="card-title">📒 Tax Ledger Mapping</h3>
         </div>
@@ -148,20 +185,97 @@ const Settings = ({ companies = [] }) => {
                   <option value={config[f.key]}>{config[f.key]}</option>
                   {liveledgers
                     .filter((l) => l !== config[f.key])
-                    .map((l) => <option key={l} value={l}>{l}</option>)
-                  }
+                    .map((l) => <option key={l} value={l}>{l}</option>)}
                 </select>
               </div>
             </div>
           ))}
-          <div style={{ marginTop: 20, display: 'flex', gap: 10 }}>
-            <button className="btn btn-primary" onClick={handleSave} disabled={loading}>
-                {loading ? 'Saving...' : 'Save Settings'}
+        </div>
+      </div>
+
+      {/* ── Voucher Types ── */}
+      <div className="card" style={{ marginBottom: 20 }}>
+        <div className="card-header">
+          <h3 className="card-title">🏷️ Voucher Types</h3>
+        </div>
+        <div className="card-body">
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
+            Add the exact voucher type names from your Tally. These appear as options when generating XML.
+          </p>
+
+          {VOUCHER_CATEGORIES.map((cat) => (
+            <div key={cat.key} style={{ marginBottom: 20 }}>
+              <div className="settings-label" style={{ marginBottom: 6 }}>{cat.label}</div>
+              <div className="settings-desc" style={{ marginBottom: 8 }}>{cat.desc}</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                {voucherTypes[cat.key].map((vt) => (
+                  <span
+                    key={vt}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      background: 'var(--bg-secondary)', border: '1px solid var(--border)',
+                      borderRadius: 6, padding: '3px 10px', fontSize: 13,
+                    }}
+                  >
+                    {vt}
+                    {voucherTypes[cat.key].length > 1 && (
+                      <button
+                        onClick={() => removeVoucherType(cat.key, vt)}
+                        style={{
+                          background: 'none', border: 'none', cursor: 'pointer',
+                          color: 'var(--text-muted)', fontSize: 14, lineHeight: 1, padding: 0,
+                        }}
+                        title="Remove"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {/* Add new voucher type */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', marginTop: 4 }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Category</label>
+              <select
+                className="form-control"
+                style={{ width: 140 }}
+                value={newVoucherType.category}
+                onChange={(e) => setNewVoucherType((p) => ({ ...p, category: e.target.value }))}
+              >
+                {VOUCHER_CATEGORIES.map((c) => (
+                  <option key={c.key} value={c.key}>{c.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+              <label className="form-label">Voucher Type Name (exact as in Tally)</label>
+              <input
+                className="form-control"
+                placeholder="e.g. Local Purchase"
+                value={newVoucherType.name}
+                onChange={(e) => setNewVoucherType((p) => ({ ...p, name: e.target.value }))}
+                onKeyDown={(e) => e.key === 'Enter' && addVoucherType()}
+              />
+            </div>
+            <button className="btn btn-outline" onClick={addVoucherType} disabled={!newVoucherType.name.trim()}>
+              + Add
             </button>
-            {saved && <span style={{ color: 'var(--success)' }}>✅ Saved</span>}
           </div>
         </div>
       </div>
+
+      {/* ── Save ── */}
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <button className="btn btn-primary" onClick={handleSave} disabled={loading}>
+          {loading ? 'Saving...' : 'Save Settings'}
+        </button>
+        {saved && <span style={{ color: 'var(--success)' }}>✅ Settings Saved</span>}
+      </div>
+
     </div>
   );
 };

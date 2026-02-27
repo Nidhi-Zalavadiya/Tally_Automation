@@ -5,15 +5,12 @@ const BASE = import.meta.env.VITE_API_URL || 'http://localhost:8001/api';
 
 const api = axios.create({ baseURL: BASE });
 
-// Attach token to every request
 api.interceptors.request.use((config) => {
   const token = sessionStorage.getItem('auth_token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// Auto-logout ONLY when /me returns 401 (real expired token)
-// NOT on /login 401 — that means wrong password, show error instead
 api.interceptors.response.use(
   (r) => r,
   (err) => {
@@ -29,20 +26,19 @@ api.interceptors.response.use(
 
 // ── Auth ──────────────────────────────────────────────────────
 export const auth = {
-  signup:        (data)           => api.post('/auth/signup',      data),
-  login:         (data)           => api.post('/auth/login',       data),
-  me:            ()               => api.get('/auth/me'),
-  verifyOtp:     (user_id, otp)   => api.post('/auth/verify-otp',  { user_id, otp }),
-  resendOtp:     (user_id)        => api.post('/auth/resend-otp',  { user_id }),
-  getProfile:    ()               => api.get('/auth/profile'),
-  updateProfile: (data)           => api.put('/auth/profile',      data),
+  signup:        (data)         => api.post('/auth/signup',     data),
+  login:         (data)         => api.post('/auth/login',      data),
+  me:            ()             => api.get('/auth/me'),
+  verifyOtp:     (user_id, otp) => api.post('/auth/verify-otp', { user_id, otp }),
+  resendOtp:     (user_id)      => api.post('/auth/resend-otp', { user_id }),
+  getProfile:    ()             => api.get('/auth/profile'),
+  updateProfile: (data)         => api.put('/auth/profile',     data),
 };
 
 // ── Companies ─────────────────────────────────────────────────
 export const companies = {
-  list:       ()              => api.get('/companies'),
-  connect:    (company_name)  => api.post('companies/connect',  { company_name }),
-  disconnect: (id)            => api.delete(`companies/${id}`),
+  list:    ()             => api.get('/companies/'),
+  connect: (company_name) => api.post('/companies/connect', { company_name }),
 };
 
 // ── Invoices ──────────────────────────────────────────────────
@@ -66,13 +62,31 @@ export const mappings = {
 
 // ── Vouchers ──────────────────────────────────────────────────
 export const vouchers = {
-  generate:        (data) => api.post('/vouchers/generate',          data),
+  generate: (data) => api.post('/vouchers/generate', data),
+
   generateAndSend: (data) => api.post('/vouchers/generate-and-send', data),
-  download:        (data) => api.post('/vouchers/download',          data, { responseType: 'blob' }),
-  exportExcel:     (data) => api.post('/vouchers/download_excel',    data, { responseType: 'blob' }),
+
+  // Single invoice XML download
+  download: (data) => api.post('/vouchers/download', data, {
+    responseType: 'blob',
+    headers: { 'Content-Type': 'application/json' },
+  }),
+
+  // Smart bulk: 1 invoice → single file, N invoices → combined file
+  // Backend endpoint /download-bulk handles both cases
+  downloadBulk: (company_name, vouchersArray) =>
+    api.post('/vouchers/download-bulk', { company_name, vouchers: vouchersArray }, {
+      responseType: 'blob',
+      headers: { 'Content-Type': 'application/json' },
+    }),
+
+  exportExcel: (data) => api.post('/vouchers/download_excel', data, {
+    responseType: 'blob',
+    headers: { 'Content-Type': 'application/json' },
+  }),
 };
 
-
+// ── Tally ─────────────────────────────────────────────────────
 export const tally = {
   connect:     (company_name) => api.post('/tally/connect', { company_name }),
   getItem:     (itemName, companyName) =>
@@ -80,10 +94,10 @@ export const tally = {
   sendVoucher: (xml_content) => api.post('/tally/send-voucher', xml_content),
 };
 
-// Placeholder for missing activities API
+// ── Activity Logs ─────────────────────────────────────────────
 export const activities = {
-  getLogs: () => Promise.resolve({ data: [] }), 
-  // Add any other methods ActivityLogs.jsx is calling here
+  list:    (params) => api.get('/activity/logs', { params }),
+  getLogs: (params) => api.get('/activity/logs', { params }),
 };
 
 export default api;
