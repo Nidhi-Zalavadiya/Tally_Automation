@@ -71,6 +71,49 @@ function fuzzyMatchLedgers(partyName, ledgers, topN = 6) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Extract supplier/party state from e-invoice data
+// Checks multiple possible field locations the parsed e-invoice might use
+// ─────────────────────────────────────────────────────────────────────────────
+function extractPartyState(invoice) {
+  // Direct fields
+  const candidates = [
+    invoice.supplier?.state,
+    invoice.supplier?.state_name,
+    invoice.seller?.state,
+    invoice.seller?.state_name,
+    invoice.SellerDtls?.State,
+    invoice.SellerDtls?.Stcd,
+    // Sometimes stored at top level
+    invoice.supplier_state,
+    invoice.seller_state,
+    invoice.party_state,
+  ];
+  for (const c of candidates) {
+    if (c && typeof c === 'string' && c.trim()) return c.trim();
+  }
+  // Derive from GSTIN first two digits (state code)
+  const gstin = invoice.supplier?.gstin || invoice.seller_gstin || '';
+  if (gstin && gstin.length >= 2) {
+    const code = gstin.substring(0, 2);
+    return GSTIN_STATE_MAP[code] || '';
+  }
+  return '';
+}
+
+// GSTIN state code → state name mapping
+const GSTIN_STATE_MAP = {
+  '01':'Jammu and Kashmir','02':'Himachal Pradesh','03':'Punjab','04':'Chandigarh',
+  '05':'Uttarakhand','06':'Haryana','07':'Delhi','08':'Rajasthan','09':'Uttar Pradesh',
+  '10':'Bihar','11':'Sikkim','12':'Arunachal Pradesh','13':'Nagaland','14':'Manipur',
+  '15':'Mizoram','16':'Tripura','17':'Meghalaya','18':'Assam','19':'West Bengal',
+  '20':'Jharkhand','21':'Odisha','22':'Chhattisgarh','23':'Madhya Pradesh',
+  '24':'Gujarat','26':'Dadra and Nagar Haveli and Daman and Diu','27':'Maharashtra',
+  '28':'Andhra Pradesh','29':'Karnataka','30':'Goa','31':'Lakshadweep',
+  '32':'Kerala','33':'Tamil Nadu','34':'Puducherry','35':'Andaman and Nicobar Islands',
+  '36':'Telangana','37':'Andhra Pradesh','38':'Ladakh','97':'Other Territory',
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Session helpers
 // ─────────────────────────────────────────────────────────────────────────────
 function getSessionConfig() {
@@ -194,6 +237,8 @@ export default function ItemMappingGrid({
   const einvoiceParty    = invoice.supplier?.name   || invoice.buyer?.name || '';
   const einvoiceGstin    = invoice.supplier?.gstin  || invoice.seller_gstin || '';
   const einvoicePos      = invoice.place_of_supply  || invoice.pos || '';
+  // Extract supplier/party state from e-invoice (multiple possible locations)
+  const einvoicePartyState = extractPartyState(invoice);
 
   const suggestedParties = fuzzyMatchLedgers(einvoiceParty, ledgers, 6);
 
@@ -201,6 +246,7 @@ export default function ItemMappingGrid({
   const [placeOfSupply,  setPlaceOfSupply]  = useState(einvoicePos || '');
   const [isInterstate,   setIsInterstate]   = useState(invoice.is_interstate || false);
   const [gstin,          setGstin]          = useState(einvoiceGstin);
+  const [partyState,     setPartyState]     = useState(einvoicePartyState); // → <STATENAME> in XML
   const [showInvoiceInfo, setShowInvoiceInfo] = useState(true); // always visible on open
 
   // ── Ledger settings ────────────────────────────────────────────
@@ -416,6 +462,7 @@ export default function ItemMappingGrid({
       supplier_ledger:    partyLedger,         // ← TALLY ledger name, not e-invoice name
       supplier_gstin:     gstin,
       place_of_supply:    placeOfSupply,
+      party_state:        partyState,          // → <STATENAME> + <BASICBUYERSSALESTAXSTATE>
       voucher_type:       voucherTypeName,
       items: mapped.map((i) => ({
         stock_item: i.mappedItem,
@@ -547,98 +594,108 @@ export default function ItemMappingGrid({
 
       {/* ── PARTY & GST INFO PANEL ── */}
       {showInvoiceInfo && (
-        <div className="settings-panel-inline" style={{ borderColor: partyLedger ? 'var(--success)' : 'var(--warning)' }}>
-          <div style={{ display:'flex', gap:4, alignItems:'center', marginBottom:10 }}>
-            <span style={{ fontWeight:600, fontSize:13 }}>🏢 Party / Invoice Details</span>
+        <div className="settings-panel-inline party-panel" style={{ borderColor: partyLedger ? 'var(--success)' : 'var(--warning)' }}>
+          <div className="party-panel-header">
+            <span className="party-panel-title">🏢 Party & Invoice Details</span>
             {!partyLedger && (
-              <span style={{ fontSize:11, color:'var(--danger)', fontWeight:600,
-                padding:'2px 8px', background:'#fee2e2', borderRadius:4 }}>
-                ⚠️ Party ledger required before generating XML
-              </span>
+              <span className="party-required-badge">⚠️ Party ledger required before generating XML</span>
+            )}
+            {einvoicePartyState && partyState && (
+              <span className="party-state-auto-badge">📍 State auto-detected: <strong>{partyState}</strong></span>
             )}
           </div>
 
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(220px,1fr))', gap:12 }}>
+          <div className="party-grid">
 
-            {/* Party Ledger — with fuzzy search */}
-            <div className="form-group" style={{ marginBottom:0, gridColumn:'span 2' }}>
+            {/* Party Ledger — full width row */}
+            <div className="party-field party-field--wide">
               <label className="form-label">
-                Party / Supplier Ledger (from Tally)
-                <span style={{ marginLeft:6, fontSize:10, color:'var(--text-muted)' }}>
-                  e-invoice: "{einvoiceParty}"
-                </span>
+                Party / Supplier Ledger <span className="field-source">(select from Tally)</span>
               </label>
+              <div className="party-ledger-hint">
+                e-invoice party: <em>"{einvoiceParty}"</em>
+              </div>
               <LedgerSearch
                 ledgers={ledgers}
                 value={partyLedger}
                 onChange={setPartyLedger}
-                placeholder={`Search Tally ledger… (from "${einvoiceParty}")`}
+                placeholder={`Search Tally ledger…`}
                 suggestions={suggestedParties}
               />
               {suggestedParties.length > 0 && !partyLedger && (
-                <div style={{ display:'flex', gap:6, marginTop:6, flexWrap:'wrap' }}>
+                <div className="party-sugg-chips">
                   {suggestedParties.slice(0, 4).map((s) => (
-                    <button key={s} className="sugg-chip"
-                      onClick={() => setPartyLedger(s)}
-                      title="Click to select this Tally ledger">
+                    <button key={s} className="sugg-chip" onClick={() => setPartyLedger(s)} title="Click to select">
                       ⚡ {s}
                     </button>
                   ))}
                 </div>
               )}
               {partyLedger && (
-                <div style={{ fontSize:11, marginTop:4, color:'var(--success)' }}>
+                <div className="party-selected-ok">
                   ✅ XML will use: <strong>{partyLedger}</strong>
                 </div>
               )}
             </div>
 
-            {/* GSTIN — from e-invoice, read-only but editable */}
-            <div className="form-group" style={{ marginBottom:0 }}>
+            {/* GSTIN */}
+            <div className="party-field">
               <label className="form-label">
-                Supplier GSTIN
-                <span style={{ marginLeft:6, fontSize:10, color:'var(--text-muted)' }}>(from e-invoice)</span>
+                Supplier GSTIN <span className="field-source">(from e-invoice)</span>
               </label>
               <input
                 className="form-control"
                 value={gstin}
                 onChange={(e) => setGstin(e.target.value)}
                 placeholder="22AAAAA0000A1Z5"
-                style={{ fontFamily:'monospace', fontSize:13, letterSpacing:1 }}
+                style={{ fontFamily:'monospace', fontSize:12, letterSpacing:1 }}
               />
             </div>
 
-            {/* GST Type */}
-            <div className="form-group" style={{ marginBottom:0 }}>
-              <label className="form-label">GST Type</label>
-              <div style={{ display:'flex', gap:8 }}>
-                <button
-                  className={`btn btn-sm ${!isInterstate ? 'btn-primary' : 'btn-outline'}`}
-                  onClick={() => setIsInterstate(false)}>
-                  Intrastate (CGST+SGST)
-                </button>
-                <button
-                  className={`btn btn-sm ${isInterstate ? 'btn-primary' : 'btn-outline'}`}
-                  onClick={() => setIsInterstate(true)}>
-                  Interstate (IGST)
-                </button>
-              </div>
-              <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:3 }}>
-                {isInterstate ? '→ XML will use IGST ledger' : '→ XML will use CGST + SGST ledgers'}
-              </div>
-            </div>
-
-            {/* Place of Supply */}
-            <div className="form-group" style={{ marginBottom:0 }}>
-              <label className="form-label">Place of Supply</label>
-              <select
-                className="form-control"
-                value={placeOfSupply}
-                onChange={(e) => setPlaceOfSupply(e.target.value)}
-              >
+            {/* Party State — NEW: extracted from e-invoice, goes to <STATENAME> */}
+            <div className="party-field">
+              <label className="form-label">
+                Party State <span className="field-source">(→ &lt;STATENAME&gt; in XML)</span>
+              </label>
+              {einvoicePartyState && (
+                <div className="party-auto-extract">
+                  Auto-extracted: <strong>{einvoicePartyState}</strong>
+                </div>
+              )}
+              <select className="form-control" value={partyState}
+                onChange={(e) => setPartyState(e.target.value)}>
                 <option value="">— Select State —</option>
                 {INDIAN_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
+            </div>
+
+            {/* Place of Supply */}
+            <div className="party-field">
+              <label className="form-label">
+                Place of Supply <span className="field-source">(→ &lt;PLACEOFSUPPLY&gt;)</span>
+              </label>
+              <select className="form-control" value={placeOfSupply}
+                onChange={(e) => setPlaceOfSupply(e.target.value)}>
+                <option value="">— Select State —</option>
+                {INDIAN_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+
+            {/* GST Type */}
+            <div className="party-field">
+              <label className="form-label">GST Type</label>
+              <div className="gst-type-toggle">
+                <button
+                  className={`gst-toggle-btn ${!isInterstate ? 'active' : ''}`}
+                  onClick={() => setIsInterstate(false)}>
+                  🏠 Intrastate<br/><span>CGST + SGST</span>
+                </button>
+                <button
+                  className={`gst-toggle-btn ${isInterstate ? 'active' : ''}`}
+                  onClick={() => setIsInterstate(true)}>
+                  🚀 Interstate<br/><span>IGST</span>
+                </button>
+              </div>
             </div>
 
           </div>
@@ -931,11 +988,12 @@ export default function ItemMappingGrid({
       {/* ── FOOTER ── */}
       <div className="grid-footer">
         <span>{items.length} items | {mappedCount} mapped | {items.length - mappedCount} pending</span>
-        <span>
-          {!partyLedger && <span style={{ color:'var(--danger)', marginRight:10, fontSize:12 }}>⚠️ Set party ledger!</span>}
-          Party: <strong>{partyLedger || '—'}</strong>
-          {placeOfSupply && <> | POS: <strong>{placeOfSupply}</strong></>}
-          {gstin && <> | GSTIN: <code style={{ fontSize:11 }}>{gstin}</code></>}
+        <span className="footer-party-info">
+          {!partyLedger && <span className="footer-warn">⚠️ Set party ledger!</span>}
+          {partyLedger && <><span className="footer-label">Party:</span> <strong>{partyLedger}</strong></>}
+          {partyState  && <><span className="footer-sep">|</span><span className="footer-label">State:</span> <strong>{partyState}</strong></>}
+          {placeOfSupply && <><span className="footer-sep">|</span><span className="footer-label">POS:</span> <strong>{placeOfSupply}</strong></>}
+          {gstin && <><span className="footer-sep">|</span><code className="footer-gstin">{gstin}</code></>}
         </span>
         <strong>₹{grandTotal.toLocaleString('en-IN', { minimumFractionDigits:2 })}</strong>
       </div>
