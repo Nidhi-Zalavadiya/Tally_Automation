@@ -1,5 +1,5 @@
 /* ============================================================
-   ItemMappingGrid.css
+   ItemMappingGrid.css — Redesigned
    ============================================================ */
 
 .item-grid-wrap {
@@ -7,7 +7,7 @@
   flex-direction: column;
   background: var(--bg2);
   border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
+  border-radius: 12px;
   overflow: hidden;
   flex: 1;
   min-height: 0;
@@ -28,13 +28,125 @@
 .grid-toolbar strong { font-size: 13px; font-weight: 700; }
 .sugg-loading { color: var(--purple); font-size: 11px; margin-left: 10px; font-style: italic; }
 
-/* ── Ledger Settings ── */
+/* ── Settings Panel Inline (generic) ── */
 .settings-panel-inline {
   padding: 14px 16px;
   background: rgba(79,142,247,0.04);
   border-bottom: 1px solid var(--border);
+  border-left: 3px solid var(--border);
   flex-shrink: 0;
 }
+
+/* ── Party Panel ── */
+.party-panel {
+  border-left: 3px solid var(--accent);
+  background: rgba(79,142,247,0.03);
+}
+
+.party-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.party-panel-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+.party-required-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: #dc2626;
+  background: rgba(220,38,38,0.1);
+  border: 1px solid rgba(220,38,38,0.25);
+  padding: 2px 8px;
+  border-radius: 5px;
+}
+.party-state-auto-badge {
+  font-size: 11px;
+  color: var(--green);
+  background: rgba(34,197,94,0.1);
+  border: 1px solid rgba(34,197,94,0.2);
+  padding: 2px 8px;
+  border-radius: 5px;
+}
+
+.party-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.party-field { display: flex; flex-direction: column; gap: 4px; }
+.party-field--wide { grid-column: span 2; }
+@media (max-width: 700px) { .party-field--wide { grid-column: span 1; } }
+
+.party-ledger-hint {
+  font-size: 11px;
+  color: var(--text2);
+  margin-bottom: 2px;
+}
+.party-ledger-hint em { color: var(--accent); font-style: normal; font-weight: 600; }
+
+.party-sugg-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.party-selected-ok {
+  font-size: 11px;
+  color: var(--green);
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+.party-auto-extract {
+  font-size: 11px;
+  color: var(--cyan);
+  background: rgba(34,211,238,0.08);
+  padding: 3px 8px;
+  border-radius: 5px;
+  border: 1px solid rgba(34,211,238,0.2);
+}
+.party-auto-extract strong { font-weight: 700; }
+
+.field-source {
+  font-size: 10px;
+  color: var(--text2);
+  font-weight: 400;
+  margin-left: 4px;
+}
+
+/* GST Type Toggle */
+.gst-type-toggle { display: flex; gap: 6px; }
+.gst-toggle-btn {
+  flex: 1;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg3);
+  color: var(--text2);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  line-height: 1.4;
+  transition: all 0.15s;
+}
+.gst-toggle-btn span { font-size: 10px; font-weight: 400; display: block; }
+.gst-toggle-btn:hover { border-color: var(--accent); color: var(--accent); }
+.gst-toggle-btn.active {
+  background: rgba(79,142,247,0.12);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ── Rate-wise panel ── */
+.rate-panel { border-left: 3px solid var(--purple); background: rgba(167,139,250,0.03); }
 
 /* ── Bulk Action Bar ── */
 .bulk-bar {
@@ -82,23 +194,14 @@
 .mapping-table tbody tr:hover { background: rgba(255,255,255,0.02); }
 .mapping-table tbody tr.row-mapped { background: rgba(34,197,94,0.03); }
 .mapping-table tbody tr.row-saved  { background: rgba(34,197,94,0.06); }
-.mapping-table tbody tr.row-pending td:first-child { border-left: 2px solid transparent; }
 
 /* Cell types */
-.num         { font-family: var(--mono); font-size: 11.5px; text-align: right; color: var(--text2); }
-.total-cell  { font-weight: 700 !important; color: var(--text) !important; }
-.desc-cell   { display: block; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.num        { font-family: var(--mono); font-size: 11.5px; text-align: right; color: var(--text2); }
+.total-cell { font-weight: 700 !important; color: var(--text) !important; }
+.desc-cell  { display: block; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tally-qty-preview { font-family: var(--mono); font-size: 10px; color: var(--cyan); margin-top: 2px; font-weight: 600; }
 
-/* Tally qty preview (shows "→ 5b" below qty) */
-.tally-qty-preview {
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--cyan);
-  margin-top: 2px;
-  font-weight: 600;
-}
-
-/* Editable cells */
+/* Cells */
 .cell-input {
   background: var(--bg3); border: 1px solid transparent; border-radius: 5px;
   padding: 4px 6px; color: var(--text); font-size: 12px; font-family: var(--mono);
@@ -114,17 +217,17 @@
 .cell-select:focus { border-color: var(--accent); }
 .cell-select option { background: var(--bg2); }
 
-/* Map column */
 .map-cell   { min-width: 210px; }
 .map-select { width: 100%; max-width: 210px; }
 
 /* Suggestion chip */
 .sugg-chip {
-  display: block; margin-top: 4px; padding: 3px 8px;
+  display: inline-block; padding: 3px 8px;
   background: rgba(167,139,250,0.1); border: 1px solid rgba(167,139,250,0.25);
   border-radius: 5px; color: var(--purple); font-size: 10.5px; font-weight: 600;
   cursor: pointer; transition: all var(--t); white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis; max-width: 210px; text-align: left;
+  margin-top: 0;
 }
 .sugg-chip:hover { background: rgba(167,139,250,0.2); }
 
@@ -135,10 +238,23 @@
 }
 .mapped-indicator.saved { color: var(--cyan); }
 
-/* Footer */
+/* ── Footer ── */
 .grid-footer {
   display: flex; align-items: center; justify-content: space-between;
   padding: 10px 16px; border-top: 1px solid var(--border);
   font-size: 12px; color: var(--text2); background: var(--bg3); flex-shrink: 0;
+  flex-wrap: wrap; gap: 6px;
 }
 .grid-footer strong { font-size: 14px; font-weight: 800; color: var(--text); font-family: var(--mono); }
+
+.footer-party-info {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+}
+.footer-warn  { color: #dc2626; font-weight: 700; }
+.footer-label { color: var(--text2); }
+.footer-sep   { color: var(--border); margin: 0 1px; }
+.footer-gstin { font-family: var(--mono); font-size: 10.5px; color: var(--cyan); background: rgba(34,211,238,0.08); padding: 1px 5px; border-radius: 4px; }

@@ -77,6 +77,7 @@ class GenerateVoucherRequest(BaseModel):
     place_of_supply:    str   = ""
     roundoff_ledger:    str   = "Round Off"      # must match exact Tally ledger name
     freight_ledger:     str   = "Freight Charges"
+    party_state:        str   = ""               # → <STATENAME> + <BASICBUYERSSALESTAXSTATE>
     # Rate-wise GST ledger entries (preferred over flat totals when present)
     gst_ledger_entries: Optional[List[GstLedgerEntry]] = None
 
@@ -118,6 +119,7 @@ def _build_xml_single(req: GenerateVoucherRequest) -> str:
         place_of_supply    = req.place_of_supply,
         roundoff_ledger    = req.roundoff_ledger,
         freight_ledger     = req.freight_ledger,
+        party_state        = req.party_state,
         gst_ledger_entries = gst_entries,
     )
 
@@ -238,6 +240,7 @@ async def download_bulk_xml(request: BulkVoucherRequest):
                     "place_of_supply":    v.place_of_supply,
                     "roundoff_ledger":    v.roundoff_ledger,
                     "freight_ledger":     v.freight_ledger,
+                    "party_state":        v.party_state,
                     "gst_ledger_entries": gst_entries,
                 })
             xml_content = builder.build_bulk_vouchers(

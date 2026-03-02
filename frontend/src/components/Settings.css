@@ -1,9 +1,373 @@
 /* ============================================================
-   Settings.css
+   Settings.css — Modern redesign
    ============================================================ */
 
-.settings-page { display: flex; flex-direction: column; gap: 20px; }
+/* ── Page Layout ── */
+.settings-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 860px;
+  padding-bottom: 32px;
+}
 
+/* ── Page Header ── */
+.settings-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-bottom: 4px;
+}
+.settings-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text);
+  margin: 0 0 4px 0;
+}
+.settings-subtitle {
+  font-size: 12.5px;
+  color: var(--text2);
+  margin: 0;
+}
+.settings-save-bar { display: flex; align-items: center; gap: 10px; }
+.save-success {
+  font-size: 13px;
+  color: var(--green);
+  font-weight: 600;
+  animation: fadeIn 0.3s ease;
+}
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+/* ── Empty State ── */
+.settings-empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text2);
+}
+.empty-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
+.settings-empty-state h3 { font-size: 16px; color: var(--text); margin: 0 0 8px; }
+.settings-empty-state p  { font-size: 13px; margin: 0; }
+
+/* ── Settings Card (scard) ── */
+.scard {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.scard-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 20px;
+  background: var(--bg3);
+  border-bottom: 1px solid var(--border);
+}
+.scard-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+.scard-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 2px;
+}
+.scard-desc {
+  font-size: 11.5px;
+  color: var(--text2);
+  margin: 0;
+  line-height: 1.4;
+}
+.scard-body { padding: 16px 20px; }
+
+/* ── Company Row ── */
+.company-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+.reload-btn { white-space: nowrap; }
+.ledger-count-badge {
+  margin-top: 10px;
+  font-size: 11.5px;
+  color: var(--green);
+  font-weight: 600;
+  padding: 5px 10px;
+  background: rgba(34,197,94,0.08);
+  border: 1px solid rgba(34,197,94,0.2);
+  border-radius: 6px;
+  display: inline-block;
+}
+
+/* ── Tabs ── */
+.settings-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: none;
+}
+.settings-tab {
+  padding: 8px 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px 8px 0 0;
+  background: var(--bg3);
+  color: var(--text2);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  border-bottom-color: var(--border);
+  margin-bottom: -1px;
+}
+.settings-tab:hover { background: var(--bg2); color: var(--text); }
+.settings-tab.active {
+  background: var(--bg2);
+  color: var(--accent);
+  border-color: var(--border);
+  border-bottom-color: var(--bg2);
+  font-weight: 700;
+}
+
+/* ── Ledger Rows ── */
+.ledger-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+.ledger-row:hover { background: rgba(255,255,255,0.015); }
+.ledger-row.last  { border-bottom: none; }
+.ledger-row-left  { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+.ledger-row-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+.ledger-icon {
+  width: 34px; height: 34px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; flex-shrink: 0;
+}
+.ledger-icon--blue   { background: rgba(59,130,246,0.12);  }
+.ledger-icon--green  { background: rgba(34,197,94,0.12);   }
+.ledger-icon--amber  { background: rgba(245,158,11,0.12);  }
+.ledger-icon--purple { background: rgba(167,139,250,0.12); }
+.ledger-icon--cyan   { background: rgba(34,211,238,0.12);  }
+.ledger-icon--rose   { background: rgba(244,63,94,0.12);   }
+
+.ledger-label { font-size: 13px; font-weight: 600; color: var(--text); }
+.ledger-desc  { font-size: 11px; color: var(--text2); margin-top: 2px; }
+.ledger-select { width: 240px; }
+.ledger-saved-badge {
+  width: 22px; height: 22px;
+  background: rgba(34,197,94,0.15);
+  color: var(--green);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; flex-shrink: 0;
+}
+
+/* ── Rate-wise GST ── */
+.rate-selector { margin-bottom: 20px; }
+.rate-selector-label {
+  font-size: 12px;
+  color: var(--text2);
+  font-weight: 600;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.rate-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.rate-chip {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--bg3);
+  color: var(--text2);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex; align-items: center; gap: 5px;
+}
+.rate-chip:hover { border-color: var(--accent); color: var(--accent); }
+.rate-chip.active {
+  background: rgba(79,142,247,0.12);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.rate-check { font-size: 10px; }
+
+.rate-empty {
+  padding: 24px;
+  text-align: center;
+  background: var(--bg3);
+  border-radius: 8px;
+  color: var(--text2);
+  font-size: 13px;
+}
+
+.rate-ledger-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
+
+.rate-ledger-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg3);
+}
+.rate-ledger-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(79,142,247,0.06);
+  border-bottom: 1px solid var(--border);
+}
+.rate-badge {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--accent);
+  background: rgba(79,142,247,0.12);
+  padding: 2px 10px;
+  border-radius: 12px;
+}
+.rate-split { font-size: 11px; color: var(--text2); flex: 1; }
+.rate-remove-btn {
+  background: none; border: none; cursor: pointer;
+  color: var(--text2); font-size: 15px; padding: 0 4px;
+  border-radius: 4px; transition: all 0.1s;
+}
+.rate-remove-btn:hover { color: var(--danger); background: rgba(239,68,68,0.1); }
+
+.rate-ledger-card-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  padding: 14px;
+}
+
+.dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: middle;
+}
+.dot-blue  { background: #3b82f6; }
+.dot-green { background: #22c55e; }
+.dot-amber { background: #f59e0b; }
+
+.form-label-hint {
+  font-size: 10px;
+  color: var(--text2);
+  margin-left: 4px;
+  font-weight: 400;
+}
+
+.rate-info-box {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 10px 14px;
+  background: rgba(79,142,247,0.06);
+  border: 1px solid rgba(79,142,247,0.2);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--text2);
+  line-height: 1.5;
+}
+
+/* ── Voucher Types ── */
+.voucher-categories {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.voucher-cat-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.voucher-cat-header {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg3);
+}
+.voucher-cat--blue   .voucher-cat-header { border-left: 3px solid #3b82f6; }
+.voucher-cat--green  .voucher-cat-header { border-left: 3px solid #22c55e; }
+.voucher-cat--amber  .voucher-cat-header { border-left: 3px solid #f59e0b; }
+.voucher-cat-title { font-size: 13px; font-weight: 700; color: var(--text); }
+.voucher-cat-desc  { font-size: 11px; color: var(--text2); margin-left: auto; }
+.voucher-tags { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 14px; }
+.voucher-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 10px; font-size: 12.5px;
+  color: var(--text); font-weight: 500;
+}
+.voucher-tag-remove {
+  background: none; border: none; cursor: pointer;
+  color: var(--text2); font-size: 14px; line-height: 1;
+  padding: 0; border-radius: 3px; transition: all 0.1s;
+}
+.voucher-tag-remove:hover { color: var(--danger); }
+
+.voucher-add-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+/* ── Bottom Save Bar ── */
+.settings-bottom-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  gap: 16px;
+  flex-wrap: wrap;
+  position: sticky;
+  bottom: 12px;
+  z-index: 10;
+  backdrop-filter: blur(8px);
+}
+.settings-bottom-info { font-size: 12px; color: var(--text2); }
+.btn-save { min-width: 160px; }
+
+/* ── Spinner ── */
+.spinner {
+  display: inline-block;
+  width: 12px; height: 12px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.spinner-sm {
+  display: inline-block;
+  width: 10px; height: 10px;
+  border: 2px solid rgba(0,0,0,0.2);
+  border-top-color: var(--text);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  margin-right: 5px;
+  vertical-align: middle;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Legacy compat ── */
 .settings-row {
   display: flex;
   align-items: center;
@@ -13,6 +377,5 @@
   gap: 16px;
 }
 .settings-row:last-child { border-bottom: none; }
-
 .settings-label { font-size: 13px; font-weight: 500; color: var(--text); }
 .settings-desc  { font-size: 11px; color: var(--text2); margin-top: 3px; }

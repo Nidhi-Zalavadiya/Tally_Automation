@@ -62,6 +62,7 @@ class VoucherBuilderService:
         # NEW fields
         supplier_gstin:     str = "",
         place_of_supply:    str = "",
+        party_state:        str = "",          # → <STATENAME> + <BASICBUYERSSALESTAXSTATE>
         roundoff_ledger:    str = "Round Off",   # from Tally ledger list
         freight_ledger:     str = "Freight Charges",
         # Rate-wise GST: list of dicts
@@ -105,8 +106,12 @@ class VoucherBuilderService:
         )
 
         # Optional tags
-        gstin_tag = f"\n                        <PARTYGSTIN>{supplier_gstin}</PARTYGSTIN>" if supplier_gstin else ""
-        pos_tag   = f"\n                        <PLACEOFSUPPLY>{place_of_supply}</PLACEOFSUPPLY>" if place_of_supply else ""
+        gstin_tag   = f"\n                        <PARTYGSTIN>{supplier_gstin}</PARTYGSTIN>" if supplier_gstin else ""
+        pos_tag     = f"\n                        <PLACEOFSUPPLY>{place_of_supply}</PLACEOFSUPPLY>" if place_of_supply else ""
+        state_tags  = (
+            f"\n                        <STATENAME>{party_state}</STATENAME>"
+            f"\n                        <BASICBUYERSSALESTAXSTATE>{party_state}</BASICBUYERSSALESTAXSTATE>"
+        ) if party_state else ""
 
         return f"""
                 <TALLYMESSAGE xmlns:UDF="TallyUDF">
@@ -118,7 +123,7 @@ class VoucherBuilderService:
                         <PARTYNAME>{supplier_ledger}</PARTYNAME>
                         <PARTYLEDGERNAME>{supplier_ledger}</PARTYLEDGERNAME>
                         <PERSISTEDVIEW>Invoice Voucher View</PERSISTEDVIEW>
-                        <ISINVOICE>Yes</ISINVOICE>{gstin_tag}{pos_tag}
+                        <ISINVOICE>Yes</ISINVOICE>{gstin_tag}{pos_tag}{state_tags}
                         {led_entries}
                         {inv_entries}
                     </VOUCHER>
@@ -147,6 +152,7 @@ class VoucherBuilderService:
         voucher_type:       str = "Purchase",
         supplier_gstin:     str = "",
         place_of_supply:    str = "",
+        party_state:        str = "",
         roundoff_ledger:    str = "Round Off",
         freight_ledger:     str = "Freight Charges",
         gst_ledger_entries: Optional[List[Dict]] = None,
@@ -169,6 +175,7 @@ class VoucherBuilderService:
             voucher_type       = voucher_type,
             supplier_gstin     = supplier_gstin,
             place_of_supply    = place_of_supply,
+            party_state        = party_state,
             roundoff_ledger    = roundoff_ledger,
             freight_ledger     = freight_ledger,
             gst_ledger_entries = gst_ledger_entries,
@@ -201,6 +208,7 @@ class VoucherBuilderService:
                 place_of_supply    = v.get("place_of_supply", ""),
                 roundoff_ledger    = v.get("roundoff_ledger", "Round Off"),
                 freight_ledger     = v.get("freight_ledger",  "Freight Charges"),
+                party_state        = v.get("party_state",     ""),
                 gst_ledger_entries = v.get("gst_ledger_entries", None),
             ))
         return self._wrap_envelope(company_name, "\n".join(blocks))
