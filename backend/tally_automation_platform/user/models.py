@@ -59,3 +59,23 @@ class OTPAttempt(models.Model):
     def is_valid(self):
         """Checks if the OTP is still within its time window and not used."""
         return not self.is_used and timezone.now() < self.expires_at
+
+
+class UserSettings(models.Model):
+    # This creates the 'user_id' column that links to Django's auth_user
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='app_settings')
+    company = models.ForeignKey('companies.TallyCompany',on_delete=models.CASCADE,related_name="user_settings")
+    # JSONB columns handled by Django's JSONField
+    ledger_config = models.JSONField(default=dict, blank=True)
+    rate_wise_ledgers = models.JSONField(default=dict, blank=True)
+    voucher_types = models.JSONField(default=dict, blank=True)
+    invoices = models.JSONField(default=list, blank=True)
+    mapping_status = models.JSONField(default=dict, blank=True)
+    
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'user_settings'
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'company'], name='unique_user_company_settings')
+        ]

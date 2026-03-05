@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from .api import tally_routs, invoice_routs, mapping_routs, voucher_routs,auth_routs,companies_routs
+from .api import tally_routs, invoice_routs, mapping_routs, voucher_routs,auth_routs,companies_routs,settings_routs
 
 # Create FastAPI app
 app = FastAPI(
@@ -90,6 +90,7 @@ app.include_router(tally_routs.router)      # /api/tally/*
 app.include_router(invoice_routs.router)    # /api/invoices/*
 app.include_router(mapping_routs.router)    # /api/mappings/*
 app.include_router(voucher_routs.router)    # /api/vouchers/*
+app.include_router(settings_routs.router)
 
 
 

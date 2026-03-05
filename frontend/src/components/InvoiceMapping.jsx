@@ -9,8 +9,8 @@ const PAGE_OPTIONS = [5, 10, 15, 20];
 
 function getSessionSettings() {
   try {
-    const config = JSON.parse(sessionStorage.getItem('ledger_config') || '{}');
-    const types  = JSON.parse(sessionStorage.getItem('voucher_types') || '{}');
+    const config = JSON.parse(localStorage.getItem('ledger_config') || '{}');
+    const types  = JSON.parse(localStorage.getItem('voucher_types') || '{}');
     return { config, types };
   } catch { return { config: {}, types: {} }; }
 }

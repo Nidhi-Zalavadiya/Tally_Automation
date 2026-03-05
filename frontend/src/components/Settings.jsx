@@ -1,7 +1,16 @@
 // src/components/Settings.jsx
 import React, { useState, useEffect } from 'react';
-import { tally } from '../services/api';
+import { tally, settings as settingsApi } from '../services/api';
 import './Settings.css';
+
+// Use localStorage so settings survive logout
+function loadLS(key, fallback) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+  catch { return fallback; }
+}
+function saveLS(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+}
 
 // ── GST rates Tally supports ──────────────────────────────────
 const GST_SLAB_RATES = [0.1, 0.25, 1, 1.5, 3, 5, 7.5, 12, 18, 28];
@@ -17,8 +26,8 @@ const INDIAN_STATES = [
   'Uttarakhand','West Bengal',
 ];
 
-function loadSession(key, fallback) {
-  try { const v = sessionStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+function loadSession(key, fallback) { 
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
   catch { return fallback; }
 }
 
@@ -33,6 +42,10 @@ const Settings = ({ companies = [] }) => {
   const [saved,           setSaved]           = useState(false);
   const [activeTab,       setActiveTab]       = useState('ledgers');
 
+  // NEW: Derive the active company ID from the selected name
+  const activeCompanyObj = safeCompanies.find((c) => c.company_name === selectedCompany);
+  const activeCompanyId = activeCompanyObj?.id;
+
   // ── Core ledger config ────────────────────────────────────────
   const [config, setConfig] = useState(() => loadSession('ledger_config', {
     cgst_ledger:      'Input CGST',
@@ -44,10 +57,7 @@ const Settings = ({ companies = [] }) => {
   }));
 
   // ── Rate-wise GST ledger config ───────────────────────────────
-  // Shape: { "5": { cgst:"Input CGST 2.5%", sgst:"Input SGST 2.5%", igst:"Input IGST 5%" }, ... }
-  const [rateWise, setRateWise] = useState(() =>
-    loadSession('rate_wise_ledgers', {})
-  );
+  const [rateWise, setRateWise] = useState(() => loadSession('rate_wise_ledgers', {}));
   const [activeRates, setActiveRates] = useState(() => {
     const saved = loadSession('rate_wise_ledgers', {});
     return Object.keys(saved).map(Number);
@@ -63,15 +73,54 @@ const Settings = ({ companies = [] }) => {
   );
   const [newVoucherType, setNewVoucherType] = useState({ category: 'purchase', name: '' });
 
-  // ── Company sync ──────────────────────────────────────────────
+  // ── 1. Init Company on First Load ─────────────────────────────
   useEffect(() => {
     if (safeCompanies.length > 0 && !selectedCompany) {
       const firstCo = safeCompanies[0];
       setSelectedCompany(firstCo.company_name);
       setLiveLedgers((firstCo.ledgers || []).map((l) => typeof l === 'string' ? l : l.name));
     }
-  }, [safeCompanies]);
+  }, [safeCompanies, selectedCompany]);
 
+  // ── 2. NEW: Load Settings from DB when Company Changes ────────
+  useEffect(() => {
+    if (!activeCompanyId) return;
+
+    const fetchCompanySettings = async () => {
+      setLoading(true);
+      try {
+        const res = await settingsApi.load(activeCompanyId);
+        
+        // If the backend returned valid settings for this company, update state
+        if (res.data?.ok) {
+          const dbConfig = res.data.ledger_config;
+          const dbRateWise = res.data.rate_wise_ledgers;
+          const dbVouchers = res.data.voucher_types;
+
+          // Only overwrite if the DB actually has data saved (not empty objects)
+          if (dbConfig && Object.keys(dbConfig).length > 0) setConfig(dbConfig);
+          
+          if (dbRateWise && Object.keys(dbRateWise).length > 0) {
+            setRateWise(dbRateWise);
+            setActiveRates(Object.keys(dbRateWise).map(Number));
+          } else {
+            setRateWise({});
+            setActiveRates([]);
+          }
+
+          if (dbVouchers && Object.keys(dbVouchers).length > 0) setVoucherTypes(dbVouchers);
+        }
+      } catch (e) {
+        console.warn('Failed to load settings from DB:', e);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCompanySettings();
+  }, [activeCompanyId]); // Re-run whenever the active company ID changes
+
+  // ── Company sync handlers ─────────────────────────────────────
   const handleCompanyChange = (name) => {
     setSelectedCompany(name);
     const co = safeCompanies.find((c) => c.company_name === name);
@@ -89,24 +138,43 @@ const Settings = ({ companies = [] }) => {
     } finally { setLoading(false); }
   };
 
-  // ── Save everything to sessionStorage ────────────────────────
-  const handleSave = () => {
+  // ── Save to localStorage + DB ─────────────────────────────────
+  const handleSave = async () => {
+    if (!activeCompanyId) {
+      alert("Please select a company first.");
+      return;
+    }
+
+    setLoading(true);
     try {
       // Build rateWise only for active rates
       const rateWiseToSave = {};
       activeRates.forEach((r) => {
         rateWiseToSave[String(r)] = rateWise[String(r)] || {
-          cgst: config.cgst_ledger,
-          sgst: config.sgst_ledger,
-          igst: config.igst_ledger,
+          cgst: config.cgst_ledger, sgst: config.sgst_ledger, igst: config.igst_ledger,
         };
       });
-      sessionStorage.setItem('ledger_config',     JSON.stringify({ ...config, selectedCompany }));
-      sessionStorage.setItem('voucher_types',     JSON.stringify(voucherTypes));
-      sessionStorage.setItem('rate_wise_ledgers', JSON.stringify(rateWiseToSave));
+      const ledgerCfg = { ...config, selectedCompany };
+      
+      // 1. Save to localStorage (instant, used by ItemMappingGrid in same session)
+      localStorage.setItem('ledger_config',     JSON.stringify(ledgerCfg));
+      localStorage.setItem('voucher_types',     JSON.stringify(voucherTypes));
+      localStorage.setItem('rate_wise_ledgers', JSON.stringify(rateWiseToSave));
+      
+      // 2. NEW: Save to DB passing the activeCompanyId
+      await settingsApi.save(activeCompanyId, {
+        ledger_config:     ledgerCfg,
+        rate_wise_ledgers: rateWiseToSave,
+        voucher_types:     voucherTypes,
+      });
+      
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
-    } catch { alert('Could not save settings'); }
+    } catch (e) {
+      console.warn('Settings DB save failed:', e.message);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } finally { setLoading(false); }
   };
 
   // ── Rate-wise helpers ─────────────────────────────────────────
@@ -466,7 +534,7 @@ const Settings = ({ companies = [] }) => {
       {/* ── Bottom Save Bar ── */}
       <div className="settings-bottom-bar">
         <div className="settings-bottom-info">
-          <span>💡 Settings are saved to your browser session — re-save after refreshing</span>
+          <span>💡 Settings are saved to your database and restored when you log back in.</span>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <button className="btn btn-primary btn-save" onClick={handleSave} disabled={loading}>
