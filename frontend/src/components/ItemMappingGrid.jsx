@@ -117,14 +117,14 @@ const GSTIN_STATE_MAP = {
 // Session helpers
 // ─────────────────────────────────────────────────────────────────────────────
 function getSessionConfig() {
-  try { return JSON.parse(sessionStorage.getItem('ledger_config') || '{}'); }
+  try { return JSON.parse(localStorage.getItem('ledger_config') || '{}'); }
   catch { return {}; }
 }
 
 function getRateWiseLedgers() {
   // Shape: { "5": { cgst: "Input CGST 2.5%", sgst: "Input SGST 2.5%", igst: "Input IGST 5%" },
   //          "18": { cgst: "Input CGST 9%",  sgst: "Input SGST 9%",  igst: "Input IGST 18%" } }
-  try { return JSON.parse(sessionStorage.getItem('rate_wise_ledgers') || '{}'); }
+  try { return JSON.parse(localStorage.getItem('rate_wise_ledgers') || '{}'); }
   catch { return {}; }
 }
 
@@ -239,6 +239,8 @@ export default function ItemMappingGrid({
   const einvoicePos      = invoice.place_of_supply  || invoice.pos || '';
   // Extract supplier/party state from e-invoice (multiple possible locations)
   const einvoicePartyState = extractPartyState(invoice);
+  const einvoiceBuyerGstin = invoice.buyer?.gstin || '';
+  const einvoiceBuyerAddress = invoice.buyer?.address || '';
 
   const suggestedParties = fuzzyMatchLedgers(einvoiceParty, ledgers, 6);
 
@@ -248,7 +250,8 @@ export default function ItemMappingGrid({
   const [gstin,          setGstin]          = useState(einvoiceGstin);
   const [partyState,     setPartyState]     = useState(einvoicePartyState); // → <STATENAME> in XML
   const [showInvoiceInfo, setShowInvoiceInfo] = useState(true); // always visible on open
-
+  const [buyerGstin , setBuyerGstin] = useState(einvoiceBuyerGstin);
+  const [buyerAddress , setBuyerAddress] = useState(einvoiceBuyerAddress);
   // ── Ledger settings ────────────────────────────────────────────
   const [settings, setSettings] = useState({
     igst_ledger:     sessionConfig.igst_ledger     || 'Input IGST',
@@ -317,6 +320,7 @@ export default function ItemMappingGrid({
   const [bulkItem,    setBulkItem]    = useState('');
   const [bulkGst,     setBulkGst]     = useState('');
   const [bulkAltUnit, setBulkAltUnit] = useState('');
+  const [bulkUnit,    setBulkUnit]    = useState('');   // NEW: bulk primary unit change
 
   const [suggestions,  setSuggestions]  = useState({});
   const [loadingSugg,  setLoadingSugg]  = useState(false);
@@ -412,9 +416,10 @@ export default function ItemMappingGrid({
         u.taxable = tax; u.cgst = g / 2; u.sgst = g / 2; u.total = tax + g;
       }
       if (bulkAltUnit) u.altUnit = bulkAltUnit;
+      if (bulkUnit)    u.uom     = bulkUnit;
       return u;
     }));
-    setBulkItem(''); setBulkGst(''); setBulkAltUnit('');
+    setBulkItem(''); setBulkGst(''); setBulkAltUnit(''); setBulkUnit('');
     setSelected(new Set());
   };
 
@@ -463,15 +468,24 @@ export default function ItemMappingGrid({
       supplier_gstin:     gstin,
       place_of_supply:    placeOfSupply,
       party_state:        partyState,          // → <STATENAME> + <BASICBUYERSSALESTAXSTATE>
+      buyer_gstin: buyerGstin,
+      buyer_address: buyerAddress,
       voucher_type:       voucherTypeName,
-      items: mapped.map((i) => ({
-        stock_item: i.mappedItem,
-        quantity:   i.altUnit ? getTallyQty(i.qty, i.uom, i.altUnit) : i.qty,
-        unit:       i.altUnit || i.uom,
-        rate:       i.rate,
-        amount:     i.taxable,
-        gst_rate:   i.gstRate,
-      })),
+      items: mapped.map((i) => {
+        // Tally ke liye unit abbreviation nikal rahe hain (e.g., 'boxes' -> 'b')
+        const rawUnit = (i.altUnit || i.uom).toLowerCase().trim();
+        const abbr = UNIT_ABBR[rawUnit];
+        const finalUnit = (abbr !== undefined && abbr !== '') ? abbr : (i.altUnit || i.uom);
+
+        return {
+          stock_item: i.mappedItem,
+          quantity:   i.qty,        // ✅ Ab yahan sirf pure number jayega (e.g., 10)
+          unit:       finalUnit,    // ✅ Unit alag se jayegi (e.g., 'b')
+          rate:       i.rate,
+          amount:     i.taxable,
+          gst_rate:   i.gstRate,
+        };
+      }),
       is_interstate:      isInterstate,
       // Legacy flat totals (for single-rate invoices / backward compat)
       cgst_total:         mapped.reduce((s, i) => s + i.cgst, 0),
@@ -604,100 +618,127 @@ export default function ItemMappingGrid({
               <span className="party-state-auto-badge">📍 State auto-detected: <strong>{partyState}</strong></span>
             )}
           </div>
+          <div style={{ maxHeight: '240px', overflowY: 'auto', paddingRight: '8px', paddingBottom: '10px' }}>    
+            <div className="party-grid">
 
-          <div className="party-grid">
-
-            {/* Party Ledger — full width row */}
-            <div className="party-field party-field--wide">
-              <label className="form-label">
-                Party / Supplier Ledger <span className="field-source">(select from Tally)</span>
-              </label>
-              <div className="party-ledger-hint">
-                e-invoice party: <em>"{einvoiceParty}"</em>
+              {/* Party Ledger — full width row */}
+              <div className="party-field party-field--wide">
+                <label className="form-label">
+                  Party / Supplier Ledger <span className="field-source">(select from Tally)</span>
+                </label>
+                <div className="party-ledger-hint">
+                  e-invoice party: <em>"{einvoiceParty}"</em>
+                </div>
+                <LedgerSearch
+                  ledgers={ledgers}
+                  value={partyLedger}
+                  onChange={setPartyLedger}
+                  placeholder={`Search Tally ledger…`}
+                  suggestions={suggestedParties}
+                />
+                {suggestedParties.length > 0 && !partyLedger && (
+                  <div className="party-sugg-chips">
+                    {suggestedParties.slice(0, 4).map((s) => (
+                      <button key={s} className="sugg-chip" onClick={() => setPartyLedger(s)} title="Click to select">
+                        ⚡ {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {partyLedger && (
+                  <div className="party-selected-ok">
+                    ✅ XML will use: <strong>{partyLedger}</strong>
+                  </div>
+                )}
               </div>
-              <LedgerSearch
-                ledgers={ledgers}
-                value={partyLedger}
-                onChange={setPartyLedger}
-                placeholder={`Search Tally ledger…`}
-                suggestions={suggestedParties}
-              />
-              {suggestedParties.length > 0 && !partyLedger && (
-                <div className="party-sugg-chips">
-                  {suggestedParties.slice(0, 4).map((s) => (
-                    <button key={s} className="sugg-chip" onClick={() => setPartyLedger(s)} title="Click to select">
-                      ⚡ {s}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {partyLedger && (
-                <div className="party-selected-ok">
-                  ✅ XML will use: <strong>{partyLedger}</strong>
-                </div>
-              )}
-            </div>
 
-            {/* GSTIN */}
-            <div className="party-field">
-              <label className="form-label">
-                Supplier GSTIN <span className="field-source">(from e-invoice)</span>
-              </label>
-              <input
-                className="form-control"
-                value={gstin}
-                onChange={(e) => setGstin(e.target.value)}
-                placeholder="22AAAAA0000A1Z5"
-                style={{ fontFamily:'monospace', fontSize:12, letterSpacing:1 }}
-              />
-            </div>
-
-            {/* Party State — NEW: extracted from e-invoice, goes to <STATENAME> */}
-            <div className="party-field">
-              <label className="form-label">
-                Party State <span className="field-source">(→ &lt;STATENAME&gt; in XML)</span>
-              </label>
-              {einvoicePartyState && (
-                <div className="party-auto-extract">
-                  Auto-extracted: <strong>{einvoicePartyState}</strong>
-                </div>
-              )}
-              <select className="form-control" value={partyState}
-                onChange={(e) => setPartyState(e.target.value)}>
-                <option value="">— Select State —</option>
-                {INDIAN_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-
-            {/* Place of Supply */}
-            <div className="party-field">
-              <label className="form-label">
-                Place of Supply <span className="field-source">(→ &lt;PLACEOFSUPPLY&gt;)</span>
-              </label>
-              <select className="form-control" value={placeOfSupply}
-                onChange={(e) => setPlaceOfSupply(e.target.value)}>
-                <option value="">— Select State —</option>
-                {INDIAN_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-
-            {/* GST Type */}
-            <div className="party-field">
-              <label className="form-label">GST Type</label>
-              <div className="gst-type-toggle">
-                <button
-                  className={`gst-toggle-btn ${!isInterstate ? 'active' : ''}`}
-                  onClick={() => setIsInterstate(false)}>
-                  🏠 Intrastate<br/><span>CGST + SGST</span>
-                </button>
-                <button
-                  className={`gst-toggle-btn ${isInterstate ? 'active' : ''}`}
-                  onClick={() => setIsInterstate(true)}>
-                  🚀 Interstate<br/><span>IGST</span>
-                </button>
+              {/* GSTIN */}
+              <div className="party-field">
+                <label className="form-label">
+                  Supplier GSTIN <span className="field-source">(from e-invoice)</span>
+                </label>
+                <input
+                  className="form-control"
+                  value={gstin}
+                  onChange={(e) => setGstin(e.target.value)}
+                  placeholder="22AAAAA0000A1Z5"
+                  style={{ fontFamily:'monospace', fontSize:12, letterSpacing:1 }}
+                />
               </div>
-            </div>
 
+              {/* Party State — NEW: extracted from e-invoice, goes to <STATENAME> */}
+              <div className="party-field">
+                <label className="form-label">
+                  Party State <span className="field-source">(→ &lt;STATENAME&gt; in XML)</span>
+                </label>
+                {einvoicePartyState && (
+                  <div className="party-auto-extract">
+                    Auto-extracted: <strong>{einvoicePartyState}</strong>
+                  </div>
+                )}
+                <select className="form-control" value={partyState}
+                  onChange={(e) => setPartyState(e.target.value)}>
+                  <option value="">— Select State —</option>
+                  {INDIAN_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              {/* Buyer GSTIN (Editable) */}
+              <div className="party-field">
+                <label className="form-label">
+                  Buyer GSTIN <span className="field-source">(→ &lt;BUYERGSTIN&gt;)</span>
+                </label>
+                <input
+                  className="form-control"
+                  value={buyerGstin}
+                  onChange={(e) => setBuyerGstin(e.target.value)}
+                  placeholder="24AAAAA0000A1Z5"
+                  style={{ fontFamily:'monospace', fontSize:12, letterSpacing:1 }}
+                />
+              </div>
+
+              {/* Buyer Address (Editable) */}
+              <div className="party-field party-field--wide">
+                <label className="form-label">
+                  Buyer Address <span className="field-source">(→ &lt;BASICBUYERADDRESS&gt;)</span>
+                </label>
+                <input
+                  className="form-control"
+                  value={buyerAddress}
+                  onChange={(e) => setBuyerAddress(e.target.value)}
+                  placeholder="Enter Buyer Address..."
+                />
+              </div>
+
+              {/* Place of Supply */}
+              <div className="party-field">
+                <label className="form-label">
+                  Place of Supply <span className="field-source">(→ &lt;PLACEOFSUPPLY&gt;)</span>
+                </label>
+                <select className="form-control" value={placeOfSupply}
+                  onChange={(e) => setPlaceOfSupply(e.target.value)}>
+                  <option value="">— Select State —</option>
+                  {INDIAN_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+
+              {/* GST Type */}
+              <div className="party-field">
+                <label className="form-label">GST Type</label>
+                <div className="gst-type-toggle">
+                  <button
+                    className={`gst-toggle-btn ${!isInterstate ? 'active' : ''}`}
+                    onClick={() => setIsInterstate(false)}>
+                    🏠 Intrastate<br/><span>CGST + SGST</span>
+                  </button>
+                  <button
+                    className={`gst-toggle-btn ${isInterstate ? 'active' : ''}`}
+                    onClick={() => setIsInterstate(true)}>
+                    🚀 Interstate<br/><span>IGST</span>
+                  </button>
+                </div>
+              </div>
+
+            </div>
           </div>
         </div>
       )}
@@ -776,7 +817,7 @@ export default function ItemMappingGrid({
 
           <button className="btn btn-outline btn-sm" style={{ marginTop:10 }}
             onClick={() => {
-              sessionStorage.setItem('rate_wise_ledgers', JSON.stringify(rateWise));
+              localStorage.setItem('rate_wise_ledgers', JSON.stringify(rateWise));
               alert('✅ Rate-wise ledger config saved to session');
             }}>
             💾 Save Rate Config to Session
@@ -851,11 +892,15 @@ export default function ItemMappingGrid({
             <option value="">— GST % —</option>
             {GST_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
           </select>
+          <select className="cell-select" value={bulkUnit} onChange={(e) => setBulkUnit(e.target.value)} style={{ width:120 }}>
+            <option value="">— Unit —</option>
+            {units.map((u) => <option key={u} value={u}>{u}</option>)}
+          </select>
           <select className="cell-select" value={bulkAltUnit} onChange={(e) => setBulkAltUnit(e.target.value)} style={{ width:120 }}>
             <option value="">— Alt Unit —</option>
             {units.map((u) => <option key={u} value={u}>{u}</option>)}
           </select>
-          <button className="btn btn-primary btn-sm" onClick={applyBulk} disabled={!bulkItem && !bulkGst && !bulkAltUnit}>Apply</button>
+          <button className="btn btn-primary btn-sm" onClick={applyBulk} disabled={!bulkItem && !bulkGst && !bulkAltUnit && !bulkUnit}>Apply</button>
           <button className="btn btn-outline btn-sm" onClick={() => setSelected(new Set())}>Clear</button>
         </div>
       )}

@@ -129,7 +129,6 @@ async def send_voucher(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# 🎓 MENTOR NOTE:
 # - APIRouter groups related endpoints under /api/tally
 # - Depends(get_db) automatically injects database session
 # - HTTPException with status codes gives proper REST responses

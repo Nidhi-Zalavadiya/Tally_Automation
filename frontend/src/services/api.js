@@ -5,25 +5,38 @@ const BASE = import.meta.env.VITE_API_URL || 'http://localhost:8001/api';
 
 const api = axios.create({ baseURL: BASE });
 
+// ── REQUEST INTERCEPTOR ───────────────────────────────────────
+// Injects the Bearer token into every outgoing request
 api.interceptors.request.use((config) => {
-  const token = sessionStorage.getItem('auth_token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  const token = sessionStorage.getItem('auth_token'); // Ensure this key matches your Login logic
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
+}, (error) => {
+  return Promise.reject(error);
 });
 
+// ── RESPONSE INTERCEPTOR ──────────────────────────────────────
+// Handles global errors like 401 (Unauthorized)
 api.interceptors.response.use(
-  (r) => r,
-  (err) => {
-    const url    = err.config?.url || '';
-    const status = err.response?.status;
-    if (status === 401 && url.includes('/auth/me')) {
-      sessionStorage.clear();
-      window.location.reload();
+  (response) => response,
+  (error) => {
+    const status = error.response?.status;
+    
+    // If server returns 401, the token is invalid or missing
+    if (status === 401) {
+      console.warn("Unauthorized request - Redirecting to login.");
+      localStorage.removeItem('token'); // Clear the specific stale token
+      
+      // Prevent infinite redirect loops if already on login page
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
+      }
     }
-    return Promise.reject(err);
+    return Promise.reject(error);
   }
 );
-
 // ── Auth ──────────────────────────────────────────────────────
 export const auth = {
   signup:        (data)         => api.post('/auth/signup',     data),
@@ -39,6 +52,8 @@ export const auth = {
 export const companies = {
   list:    ()             => api.get('/companies/'),
   connect: (company_name) => api.post('/companies/connect', { company_name }),
+  // Refresh masters for already-connected company (new items/ledgers added in Tally)
+  refresh: (company_id)   => api.post(`/companies/${company_id}/refresh`),
 };
 
 // ── Invoices ──────────────────────────────────────────────────
@@ -66,14 +81,11 @@ export const vouchers = {
 
   generateAndSend: (data) => api.post('/vouchers/generate-and-send', data),
 
-  // Single invoice XML download
   download: (data) => api.post('/vouchers/download', data, {
     responseType: 'blob',
     headers: { 'Content-Type': 'application/json' },
   }),
 
-  // Smart bulk: 1 invoice → single file, N invoices → combined file
-  // Backend endpoint /download-bulk handles both cases
   downloadBulk: (company_name, vouchersArray) =>
     api.post('/vouchers/download-bulk', { company_name, vouchers: vouchersArray }, {
       responseType: 'blob',
@@ -94,6 +106,26 @@ export const tally = {
   sendVoucher: (xml_content) => api.post('/tally/send-voucher', xml_content),
 };
 
+// ── Settings — persist to DB across sessions per company ──────────
+export const settings = {
+  // Load all settings + invoices on login
+  load: (companyId) => 
+    api.get(`/settings/?company_id=${companyId}`),
+
+  // Save ledger config / rate-wise / voucher types
+  save: (companyId, data) => 
+    api.post('/settings/save', { ...data, company_id: companyId }),
+
+  // Invoice persistence
+  loadInvoices: (companyId) => 
+    api.get(`/settings/invoices?company_id=${companyId}`),
+    
+  saveInvoices: (companyId, data) => 
+    api.post('/settings/invoices', { ...data, company_id: companyId }),
+    
+  clearInvoices: (companyId) => 
+    api.delete(`/settings/invoices?company_id=${companyId}`),
+};
 // ── Activity Logs ─────────────────────────────────────────────
 export const activities = {
   list:    (params) => api.get('/activity/logs', { params }),
