@@ -3,19 +3,24 @@ import React, { useState, useEffect } from 'react';
 import { tally, settings as settingsApi } from '../services/api';
 import './Settings.css';
 
-// Use localStorage so settings survive logout
-function loadLS(key, fallback) {
-  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
-  catch { return fallback; }
-}
-function saveLS(key, value) {
-  try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
-}
+// ── Default Fallbacks ─────────────────────────────────────────
+const DEFAULT_LEDGER_CONFIG = {
+  cgst_ledger:      'Input CGST',
+  sgst_ledger:      'Input SGST',
+  igst_ledger:      'Input IGST',
+  purchase_ledger:  'Purchase',
+  roundoff_ledger:  'Round Off',
+  freight_ledger:   'Freight Charges',
+};
 
-// ── GST rates Tally supports ──────────────────────────────────
+const DEFAULT_VOUCHER_TYPES = {
+  purchase: ['Purchase'],
+  sales:    ['Sales'],
+  journal:  ['Journal'],
+};
+
+// ── GST rates & Indian states ─────────────────────────────────
 const GST_SLAB_RATES = [0.1, 0.25, 1, 1.5, 3, 5, 7.5, 12, 18, 28];
-
-// ── Indian states ─────────────────────────────────────────────
 const INDIAN_STATES = [
   'Andaman and Nicobar Islands','Andhra Pradesh','Arunachal Pradesh','Assam','Bihar',
   'Chandigarh','Chhattisgarh','Dadra and Nagar Haveli and Daman and Diu','Delhi',
@@ -26,51 +31,26 @@ const INDIAN_STATES = [
   'Uttarakhand','West Bengal',
 ];
 
-function loadSession(key, fallback) { 
-  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
-  catch { return fallback; }
-}
-
 const Settings = ({ companies = [] }) => {
-  const safeCompanies = Array.isArray(companies)
-    ? companies
-    : (companies?.companies || []);
+  const safeCompanies = Array.isArray(companies) ? companies : (companies?.companies || []);
 
   const [selectedCompany, setSelectedCompany] = useState('');
   const [liveledgers,     setLiveLedgers]     = useState([]);
   const [loading,         setLoading]         = useState(false);
   const [saved,           setSaved]           = useState(false);
   const [activeTab,       setActiveTab]       = useState('ledgers');
+  
+  // NEW: Track if the current settings are actually saved in the DB
+  const [isSavedInDb,     setIsSavedInDb]     = useState(false);
 
-  // NEW: Derive the active company ID from the selected name
   const activeCompanyObj = safeCompanies.find((c) => c.company_name === selectedCompany);
   const activeCompanyId = activeCompanyObj?.id;
 
-  // ── Core ledger config ────────────────────────────────────────
-  const [config, setConfig] = useState(() => loadSession('ledger_config', {
-    cgst_ledger:      'Input CGST',
-    sgst_ledger:      'Input SGST',
-    igst_ledger:      'Input IGST',
-    purchase_ledger:  'Purchase',
-    roundoff_ledger:  'Round Off',
-    freight_ledger:   'Freight Charges',
-  }));
-
-  // ── Rate-wise GST ledger config ───────────────────────────────
-  const [rateWise, setRateWise] = useState(() => loadSession('rate_wise_ledgers', {}));
-  const [activeRates, setActiveRates] = useState(() => {
-    const saved = loadSession('rate_wise_ledgers', {});
-    return Object.keys(saved).map(Number);
-  });
-
-  // ── Voucher types ─────────────────────────────────────────────
-  const [voucherTypes, setVoucherTypes] = useState(() =>
-    loadSession('voucher_types', {
-      purchase: ['Purchase'],
-      sales:    ['Sales'],
-      journal:  ['Journal'],
-    })
-  );
+  // ── States ────────────────────────────────────────────────────
+  const [config, setConfig]             = useState(DEFAULT_LEDGER_CONFIG);
+  const [rateWise, setRateWise]         = useState({});
+  const [activeRates, setActiveRates]   = useState([]);
+  const [voucherTypes, setVoucherTypes] = useState(DEFAULT_VOUCHER_TYPES);
   const [newVoucherType, setNewVoucherType] = useState({ category: 'purchase', name: '' });
 
   // ── 1. Init Company on First Load ─────────────────────────────
@@ -82,7 +62,7 @@ const Settings = ({ companies = [] }) => {
     }
   }, [safeCompanies, selectedCompany]);
 
-  // ── 2. NEW: Load Settings from DB when Company Changes ────────
+  // ── 2. Load Settings from DB when Company Changes ─────────────
   useEffect(() => {
     if (!activeCompanyId) return;
 
@@ -91,14 +71,21 @@ const Settings = ({ companies = [] }) => {
       try {
         const res = await settingsApi.load(activeCompanyId);
         
-        // If the backend returned valid settings for this company, update state
         if (res.data?.ok) {
           const dbConfig = res.data.ledger_config;
           const dbRateWise = res.data.rate_wise_ledgers;
           const dbVouchers = res.data.voucher_types;
 
-          // Only overwrite if the DB actually has data saved (not empty objects)
-          if (dbConfig && Object.keys(dbConfig).length > 0) setConfig(dbConfig);
+          // Check if DB actually returned populated data
+          const hasSavedData = dbConfig && Object.keys(dbConfig).length > 0;
+          setIsSavedInDb(hasSavedData);
+
+          // If data exists, use it. If empty, strictly reset to defaults!
+          if (hasSavedData) {
+            setConfig(dbConfig);
+          } else {
+            setConfig(DEFAULT_LEDGER_CONFIG);
+          }
           
           if (dbRateWise && Object.keys(dbRateWise).length > 0) {
             setRateWise(dbRateWise);
@@ -108,7 +95,11 @@ const Settings = ({ companies = [] }) => {
             setActiveRates([]);
           }
 
-          if (dbVouchers && Object.keys(dbVouchers).length > 0) setVoucherTypes(dbVouchers);
+          if (dbVouchers && Object.keys(dbVouchers).length > 0) {
+            setVoucherTypes(dbVouchers);
+          } else {
+            setVoucherTypes(DEFAULT_VOUCHER_TYPES);
+          }
         }
       } catch (e) {
         console.warn('Failed to load settings from DB:', e);
@@ -118,7 +109,7 @@ const Settings = ({ companies = [] }) => {
     };
 
     fetchCompanySettings();
-  }, [activeCompanyId]); // Re-run whenever the active company ID changes
+  }, [activeCompanyId]);
 
   // ── Company sync handlers ─────────────────────────────────────
   const handleCompanyChange = (name) => {
@@ -138,7 +129,7 @@ const Settings = ({ companies = [] }) => {
     } finally { setLoading(false); }
   };
 
-  // ── Save to localStorage + DB ─────────────────────────────────
+  // ── Save to DB ────────────────────────────────────────────────
   const handleSave = async () => {
     if (!activeCompanyId) {
       alert("Please select a company first.");
@@ -147,7 +138,6 @@ const Settings = ({ companies = [] }) => {
 
     setLoading(true);
     try {
-      // Build rateWise only for active rates
       const rateWiseToSave = {};
       activeRates.forEach((r) => {
         rateWiseToSave[String(r)] = rateWise[String(r)] || {
@@ -156,63 +146,59 @@ const Settings = ({ companies = [] }) => {
       });
       const ledgerCfg = { ...config, selectedCompany };
       
-      // 1. Save to localStorage (instant, used by ItemMappingGrid in same session)
+      // Save to localStorage for immediate grid access
       localStorage.setItem('ledger_config',     JSON.stringify(ledgerCfg));
       localStorage.setItem('voucher_types',     JSON.stringify(voucherTypes));
       localStorage.setItem('rate_wise_ledgers', JSON.stringify(rateWiseToSave));
       
-      // 2. NEW: Save to DB passing the activeCompanyId
+      // Save to DB
       await settingsApi.save(activeCompanyId, {
         ledger_config:     ledgerCfg,
         rate_wise_ledgers: rateWiseToSave,
         voucher_types:     voucherTypes,
       });
       
+      setIsSavedInDb(true); // Update UI to show it's now saved!
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (e) {
-      console.warn('Settings DB save failed:', e.message);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2500);
-    } finally { setLoading(false); }
+      // FIX: Show an actual error alert if it fails, instead of faking success
+      console.error('Settings DB save failed:', e);
+      alert('Failed to save settings! Error: ' + (e.response?.data?.detail || e.message));
+    } finally { 
+      setLoading(false); 
+    }
   };
 
-  // ── Rate-wise helpers ─────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────
   const toggleRate = (rate) => {
     setActiveRates((prev) =>
       prev.includes(rate) ? prev.filter((r) => r !== rate) : [...prev, rate].sort((a, b) => a - b)
     );
-    // Init ledger config for this rate if not set
     if (!rateWise[String(rate)]) {
       setRateWise((prev) => ({
         ...prev,
-        [String(rate)]: {
-          cgst: config.cgst_ledger,
-          sgst: config.sgst_ledger,
-          igst: config.igst_ledger,
-        },
+        [String(rate)]: { cgst: config.cgst_ledger, sgst: config.sgst_ledger, igst: config.igst_ledger },
       }));
     }
   };
 
   const updateRateWise = (rate, field, value) => {
     setRateWise((prev) => ({
-      ...prev,
-      [String(rate)]: { ...(prev[String(rate)] || {}), [field]: value },
+      ...prev, [String(rate)]: { ...(prev[String(rate)] || {}), [field]: value },
     }));
   };
 
-  // ── Voucher type helpers ──────────────────────────────────────
   const addVoucherType = () => {
     const name = newVoucherType.name.trim();
     if (!name) return;
     const cat = newVoucherType.category;
     setVoucherTypes((prev) => ({
-      ...prev,
-      [cat]: prev[cat].includes(name) ? prev[cat] : [...prev[cat], name],
+      ...prev, [cat]: prev[cat].includes(name) ? prev[cat] : [...prev[cat], name],
     }));
     setNewVoucherType((p) => ({ ...p, name: '' }));
   };
+
   const removeVoucherType = (cat, name) => {
     setVoucherTypes((prev) => ({ ...prev, [cat]: prev[cat].filter((v) => v !== name) }));
   };
@@ -248,7 +234,6 @@ const Settings = ({ companies = [] }) => {
   return (
     <div className="settings-page">
 
-      {/* ── Page Header ── */}
       <div className="settings-header">
         <div>
           <h2 className="settings-title">⚙️ Settings</h2>
@@ -262,7 +247,6 @@ const Settings = ({ companies = [] }) => {
         </div>
       </div>
 
-      {/* ── Company Selector Card ── */}
       <div className="scard">
         <div className="scard-header">
           <span className="scard-icon">🔌</span>
@@ -287,15 +271,16 @@ const Settings = ({ companies = [] }) => {
               {loading ? <><span className="spinner-sm" />Loading…</> : '↺ Reload Ledgers'}
             </button>
           </div>
-          {liveledgers.length > 0 && (
-            <div className="ledger-count-badge">
-              ✅ {liveledgers.length} ledgers loaded from Tally
+          
+          {/* NEW: Warning banner if DB has no data */}
+          {!loading && !isSavedInDb && (
+            <div style={{ marginTop: 12, padding: '8px 12px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, color: '#92400e', fontSize: 13 }}>
+              ⚠️ <strong>Unsaved Defaults:</strong> No settings are saved for this company yet. Modify the default values below and click <b>Save All Settings</b>.
             </div>
           )}
         </div>
       </div>
 
-      {/* ── Tabs ── */}
       <div className="settings-tabs">
         {[
           { id: 'ledgers',   label: '📒 Tax Ledgers'   },
@@ -310,16 +295,14 @@ const Settings = ({ companies = [] }) => {
         ))}
       </div>
 
-      {/* ════════════════════════════════════════
-          TAB 1: Core Ledger Mapping
-      ════════════════════════════════════════ */}
+      {/* TAB 1: Ledgers */}
       {activeTab === 'ledgers' && (
         <div className="scard">
           <div className="scard-header">
             <span className="scard-icon">📒</span>
             <div>
               <h3 className="scard-title">Tax Ledger Mapping</h3>
-              <p className="scard-desc">Default ledgers used across all invoices — can be overridden per invoice</p>
+              <p className="scard-desc">Default ledgers used across all invoices</p>
             </div>
           </div>
           <div className="scard-body" style={{ padding: 0 }}>
@@ -335,7 +318,10 @@ const Settings = ({ companies = [] }) => {
                 <div className="ledger-row-right">
                   <select className="form-control ledger-select"
                     value={config[f.key] || ''}
-                    onChange={(e) => setConfig((p) => ({ ...p, [f.key]: e.target.value }))}>
+                    onChange={(e) => {
+                      setConfig((p) => ({ ...p, [f.key]: e.target.value }));
+                      setIsSavedInDb(false); // Mark as unsaved if they change it
+                    }}>
                     {config[f.key] && <option value={config[f.key]}>{config[f.key]}</option>}
                     {liveledgers.filter((l) => l !== config[f.key]).map((l) =>
                       <option key={l} value={l}>{l}</option>
@@ -344,8 +330,19 @@ const Settings = ({ companies = [] }) => {
                       <option value="">— Load ledgers first —</option>
                     }
                   </select>
+                  
+                  {/* UPDATE: Checkmark only shows green if actually saved in DB */}
                   {config[f.key] && (
-                    <span className="ledger-saved-badge">✓</span>
+                    <span 
+                      className="ledger-saved-badge" 
+                      style={{ 
+                        color: isSavedInDb ? 'var(--success)' : '#f59e0b',
+                        background: isSavedInDb ? '#dcfce7' : '#fef3c7' 
+                      }}
+                      title={isSavedInDb ? "Saved" : "Unsaved Edit"}
+                    >
+                      {isSavedInDb ? '✓' : '●'}
+                    </span>
                   )}
                 </div>
               </div>
@@ -354,31 +351,24 @@ const Settings = ({ companies = [] }) => {
         </div>
       )}
 
-      {/* ════════════════════════════════════════
-          TAB 2: Rate-wise GST Ledgers
-      ════════════════════════════════════════ */}
+      {/* TAB 2: Rate-wise */}
       {activeTab === 'ratewise' && (
         <div className="scard">
           <div className="scard-header">
             <span className="scard-icon">📊</span>
             <div>
               <h3 className="scard-title">Rate-wise GST Ledgers</h3>
-              <p className="scard-desc">
-                Map each GST slab to its specific Tally input ledger.
-                When an invoice has items at multiple rates, the correct ledger is used for each.
-              </p>
+              <p className="scard-desc">Map each GST slab to its specific Tally input ledger.</p>
             </div>
           </div>
           <div className="scard-body">
-
-            {/* Rate selector chips */}
             <div className="rate-selector">
               <div className="rate-selector-label">Select GST rates used in your invoices:</div>
               <div className="rate-chips">
                 {GST_SLAB_RATES.map((rate) => (
                   <button key={rate}
                     className={`rate-chip ${activeRates.includes(rate) ? 'active' : ''}`}
-                    onClick={() => toggleRate(rate)}>
+                    onClick={() => { toggleRate(rate); setIsSavedInDb(false); }}>
                     {rate}%
                     {activeRates.includes(rate) && <span className="rate-check">✓</span>}
                   </button>
@@ -386,11 +376,9 @@ const Settings = ({ companies = [] }) => {
               </div>
             </div>
 
-            {/* Ledger rows for each active rate */}
             {activeRates.length === 0 && (
               <div className="rate-empty">
                 <p>Click the rate chips above to add GST slabs you use.</p>
-                <p style={{ fontSize:11 }}>Example: if you receive bills at 5% and 18%, enable both.</p>
               </div>
             )}
 
@@ -403,49 +391,34 @@ const Settings = ({ companies = [] }) => {
                     <div className="rate-ledger-card-header">
                       <span className="rate-badge">{rate}% GST</span>
                       <span className="rate-split">CGST {halfRate}% + SGST {halfRate}% | IGST {rate}%</span>
-                      <button className="rate-remove-btn" onClick={() => toggleRate(rate)} title="Remove">✕</button>
+                      <button className="rate-remove-btn" onClick={() => { toggleRate(rate); setIsSavedInDb(false); }}>✕</button>
                     </div>
                     <div className="rate-ledger-card-body">
                       {/* CGST */}
                       <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label">
-                          <span className="dot dot-blue" />CGST Ledger
-                          <span className="form-label-hint">({halfRate}%)</span>
-                        </label>
+                        <label className="form-label"><span className="dot dot-blue" />CGST Ledger</label>
                         <select className="form-control" value={rw.cgst || ''}
-                          onChange={(e) => updateRateWise(rate, 'cgst', e.target.value)}>
+                          onChange={(e) => { updateRateWise(rate, 'cgst', e.target.value); setIsSavedInDb(false); }}>
                           {rw.cgst && <option value={rw.cgst}>{rw.cgst}</option>}
-                          {liveledgers.filter((l) => l !== rw.cgst).map((l) =>
-                            <option key={l} value={l}>{l}</option>
-                          )}
+                          {liveledgers.filter((l) => l !== rw.cgst).map((l) => <option key={l} value={l}>{l}</option>)}
                         </select>
                       </div>
                       {/* SGST */}
                       <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label">
-                          <span className="dot dot-green" />SGST Ledger
-                          <span className="form-label-hint">({halfRate}%)</span>
-                        </label>
+                        <label className="form-label"><span className="dot dot-green" />SGST Ledger</label>
                         <select className="form-control" value={rw.sgst || ''}
-                          onChange={(e) => updateRateWise(rate, 'sgst', e.target.value)}>
+                          onChange={(e) => { updateRateWise(rate, 'sgst', e.target.value); setIsSavedInDb(false); }}>
                           {rw.sgst && <option value={rw.sgst}>{rw.sgst}</option>}
-                          {liveledgers.filter((l) => l !== rw.sgst).map((l) =>
-                            <option key={l} value={l}>{l}</option>
-                          )}
+                          {liveledgers.filter((l) => l !== rw.sgst).map((l) => <option key={l} value={l}>{l}</option>)}
                         </select>
                       </div>
                       {/* IGST */}
                       <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label">
-                          <span className="dot dot-amber" />IGST Ledger
-                          <span className="form-label-hint">({rate}%)</span>
-                        </label>
+                        <label className="form-label"><span className="dot dot-amber" />IGST Ledger</label>
                         <select className="form-control" value={rw.igst || ''}
-                          onChange={(e) => updateRateWise(rate, 'igst', e.target.value)}>
+                          onChange={(e) => { updateRateWise(rate, 'igst', e.target.value); setIsSavedInDb(false); }}>
                           {rw.igst && <option value={rw.igst}>{rw.igst}</option>}
-                          {liveledgers.filter((l) => l !== rw.igst).map((l) =>
-                            <option key={l} value={l}>{l}</option>
-                          )}
+                          {liveledgers.filter((l) => l !== rw.igst).map((l) => <option key={l} value={l}>{l}</option>)}
                         </select>
                       </div>
                     </div>
@@ -453,23 +426,11 @@ const Settings = ({ companies = [] }) => {
                 );
               })}
             </div>
-
-            {activeRates.length > 0 && (
-              <div className="rate-info-box">
-                <span>💡</span>
-                <span>
-                  When you generate XML, the system automatically uses the right ledger for each item's GST rate.
-                  If a rate isn't configured here, the default ledgers from <em>Tax Ledgers</em> tab are used as fallback.
-                </span>
-              </div>
-            )}
           </div>
         </div>
       )}
 
-      {/* ════════════════════════════════════════
-          TAB 3: Voucher Types
-      ════════════════════════════════════════ */}
+      {/* TAB 3: Voucher Types */}
       {activeTab === 'vouchers' && (
         <div className="scard">
           <div className="scard-header">
@@ -485,7 +446,6 @@ const Settings = ({ companies = [] }) => {
                 <div key={cat.key} className={`voucher-cat-card voucher-cat--${cat.color}`}>
                   <div className="voucher-cat-header">
                     <span className="voucher-cat-title">{cat.label}</span>
-                    <span className="voucher-cat-desc">{cat.desc}</span>
                   </div>
                   <div className="voucher-tags">
                     {voucherTypes[cat.key].map((vt) => (
@@ -493,7 +453,7 @@ const Settings = ({ companies = [] }) => {
                         {vt}
                         {voucherTypes[cat.key].length > 1 && (
                           <button className="voucher-tag-remove"
-                            onClick={() => removeVoucherType(cat.key, vt)} title="Remove">×</button>
+                            onClick={() => { removeVoucherType(cat.key, vt); setIsSavedInDb(false); }}>×</button>
                         )}
                       </span>
                     ))}
@@ -502,16 +462,13 @@ const Settings = ({ companies = [] }) => {
               ))}
             </div>
 
-            {/* Add new */}
             <div className="voucher-add-row">
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label">Category</label>
                 <select className="form-control" style={{ width: 150 }}
                   value={newVoucherType.category}
                   onChange={(e) => setNewVoucherType((p) => ({ ...p, category: e.target.value }))}>
-                  {VOUCHER_CATEGORIES.map((c) => (
-                    <option key={c.key} value={c.key}>{c.label}</option>
-                  ))}
+                  {VOUCHER_CATEGORIES.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
                 </select>
               </div>
               <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
@@ -520,10 +477,10 @@ const Settings = ({ companies = [] }) => {
                   placeholder="e.g. Local Purchase, Import Purchase…"
                   value={newVoucherType.name}
                   onChange={(e) => setNewVoucherType((p) => ({ ...p, name: e.target.value }))}
-                  onKeyDown={(e) => e.key === 'Enter' && addVoucherType()} />
+                  onKeyDown={(e) => { if(e.key === 'Enter') { addVoucherType(); setIsSavedInDb(false); } }} />
               </div>
               <button className="btn btn-primary" style={{ alignSelf: 'flex-end' }}
-                onClick={addVoucherType} disabled={!newVoucherType.name.trim()}>
+                onClick={() => { addVoucherType(); setIsSavedInDb(false); }} disabled={!newVoucherType.name.trim()}>
                 + Add
               </button>
             </div>
@@ -531,7 +488,6 @@ const Settings = ({ companies = [] }) => {
         </div>
       )}
 
-      {/* ── Bottom Save Bar ── */}
       <div className="settings-bottom-bar">
         <div className="settings-bottom-info">
           <span>💡 Settings are saved to your database and restored when you log back in.</span>
@@ -543,7 +499,6 @@ const Settings = ({ companies = [] }) => {
           {saved && <span className="save-success">✅ Saved!</span>}
         </div>
       </div>
-
     </div>
   );
 };

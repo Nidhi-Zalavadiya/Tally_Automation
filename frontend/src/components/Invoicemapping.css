@@ -9,7 +9,7 @@
   /* Change height from 100% to a viewport-based calculation */
   height: calc(100vh - 100px); 
   overflow-y: auto; 
-  padding-bottom: 20px; 
+  padding-bottom: 5px; 
 }
 
 .mapping-topbar {

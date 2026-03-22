@@ -5,7 +5,7 @@ import { useAppState } from '../context/AppstateContext';
 import { companies as companiesApi } from '../services/api';
 
 const Dashboard = ({ setActiveMenu }) => {
-  const { companies, mergeCompanies, uploadedInvoices, mappingStatus } = useAppState();
+  const { companies, mergeCompanies, uploadedInvoices, mappingStatus,activeCompanyId, setActiveCompanyId } = useAppState();
   const [loading, setLoading] = useState(companies.length===0);
 
   // ── Fetch companies from DB on mount ─────────────────────────
@@ -100,21 +100,32 @@ const Dashboard = ({ setActiveMenu }) => {
                   </div>
                 </td></tr>
               ) : (
-                companies.map((c) => (
-                  <tr key={c.id}>
-                    <td><strong>{c.company_name}</strong></td>
-                    <td>{c.connected_at ? new Date(c.connected_at).toLocaleDateString('en-IN') : '—'}</td>
-                    <td><span className="badge badge-blue">{c.ledgers?.length ?? '—'}</span></td>
-                    <td><span className="badge badge-purple">{c.stock_items?.length ?? '—'}</span></td>
-                    <td><span className="badge badge-green">{c.units?.length ?? '—'}</span></td>
-                    <td><span className="badge badge-green">● Active</span></td>
-                    <td>
-                      <button className="btn btn-outline btn-xs" onClick={() => setActiveMenu('invoices')}>
-                        Upload Invoice →
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                companies.map((c) => {
+                  const isActive = c.id === activeCompanyId; // <-- strict check
+                  return (
+                    <tr key={c.id}>
+                      <td><strong>{c.company_name}</strong></td>
+                      <td>{c.connected_at ? new Date(c.connected_at).toLocaleDateString('en-IN') : '—'}</td>
+                      <td><span className="badge badge-blue">{c.ledgers?.length ?? '—'}</span></td>
+                      <td><span className="badge badge-purple">{c.stock_items?.length ?? '—'}</span></td>
+                      <td><span className="badge badge-green">{c.units?.length ?? '—'}</span></td>
+                      
+                      {/* NEW: Conditional Badge / Button */}
+                      <td>
+                        {isActive 
+                          ? <span className="badge badge-green">● Active</span>
+                          : <button className="btn btn-outline btn-xs" onClick={() => setActiveCompanyId(c.id)}>Set Active</button>
+                        }
+                      </td>
+                      
+                      <td>
+                        <button className="btn btn-outline btn-xs" onClick={() => setActiveMenu('invoices')}>
+                          Upload Invoice →
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>

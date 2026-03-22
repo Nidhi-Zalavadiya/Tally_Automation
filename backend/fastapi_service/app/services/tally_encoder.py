@@ -51,6 +51,13 @@ class VoucherBuilderService:
     @staticmethod
     def _format_amount(amount: Decimal) -> str:
         return f"{float(amount):.2f}"
+    
+    @staticmethod
+    def _escape_xml(text: str) -> str:
+        """Escapes restricted XML characters to prevent parsing crashes."""
+        if not text:
+            return ""
+        return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
     # ─────────────────────────────────────────────────────────────
     # Inner block — ONE voucher
@@ -116,7 +123,12 @@ class VoucherBuilderService:
             freight_ledger     = freight_ledger,
             gst_ledger_entries = gst_ledger_entries,
         )
+        narr     = narration or f"Purchase against invoice {invoice_no}"
 
+        supplier_ledger = self._escape_xml(supplier_ledger)
+        buyer_address = self._escape_xml(buyer_address)
+        narr = self._escape_xml(narr)
+        
         # Optional tags
         t = ""
         if supplier_gstin:  t += f"\n                        <PARTYGSTIN>{supplier_gstin}</PARTYGSTIN>"
@@ -125,9 +137,10 @@ class VoucherBuilderService:
         if party_state:
             t += f"\n                        <STATENAME>{party_state}</STATENAME>"
             t += f"\n                        <BASICBUYERSSALESTAXSTATE>{party_state}</BASICBUYERSSALESTAXSTATE>"
+        t +=F"\n  <COUNTRYOFRESIDENCE>India</COUNTRYOFRESIDENCE>"
         if buyer_address:   t += f"\n                        <BASICBUYERADDRESS>{buyer_address}</BASICBUYERADDRESS>"
 
-        narr     = narration or f"Purchase against invoice {invoice_no}"
+        
         reg_type = GST_REG_TYPES.get(gst_registration_type, "Regular")
         gst_det  = self._build_gst_voucher_details(
             invoice_no, tally_date, is_interstate, place_of_supply,
@@ -271,11 +284,30 @@ class VoucherBuilderService:
     def _build_inventory_entries(self, items: List[Dict], purchase_ledger: str) -> str:
         entries = []
         for item in items:
-            stock_item = item.get("stock_item", "")
-            quantity   = item.get("quantity", 0)
-            unit       = item.get("unit", "Nos")
-            rate       = self._format_amount(Decimal(str(item.get("rate",   0))))
-            amount     = self._format_amount(Decimal(str(item.get("amount", 0))))
+            stock_item = self._escape_xml(item.get("stock_item", ""))
+            
+            # Extract as Decimals for accurate math
+            quantity_val  = Decimal(str(item.get("quantity", 0)))
+            original_rate = Decimal(str(item.get("rate", 0)))
+            amount_val    = Decimal(str(item.get("amount", 0)))
+            
+            unit         = item.get("unit", "Nos")
+            # Assume your payload might pass an 'alt_unit' key if one exists
+            has_alt_unit = bool(item.get("alt_unit")) 
+            
+            # Check if there's a math difference (implies a discount or rounding)
+            expected_amount = quantity_val * original_rate
+            has_math_diff   = abs(expected_amount - amount_val) > Decimal("0.01")
+
+            # --- CONDITIONAL RATE CALCULATION ---
+            # Recalculate ONLY if there is a difference OR there is no alternative unit
+            if quantity_val > 0 and (has_math_diff and not has_alt_unit):
+                derived_rate = round(amount_val / quantity_val, 2)
+            else:
+                derived_rate = original_rate
+
+            rate       = f"{derived_rate:.4f}"
+            amount     = self._format_amount(amount_val)
             gst_rate   = float(item.get("gst_rate", 0))
 
             entries.append(f"""
@@ -287,8 +319,8 @@ class VoucherBuilderService:
                             <ISGSTASSESSABLEVALUEOVERRIDDEN>No</ISGSTASSESSABLEVALUEOVERRIDDEN>
                             <RATE>{rate}</RATE>
                             <AMOUNT>-{amount}</AMOUNT>
-                            <ACTUALQTY> {quantity} {unit}</ACTUALQTY>
-                            <BILLEDQTY> {quantity} {unit}</BILLEDQTY>
+                            <ACTUALQTY> {quantity_val} {unit}</ACTUALQTY>
+                            <BILLEDQTY> {quantity_val} {unit}</BILLEDQTY>
                             <ACCOUNTINGALLOCATIONS.LIST>
                                 <LEDGERNAME>{purchase_ledger}</LEDGERNAME>
                                 <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>

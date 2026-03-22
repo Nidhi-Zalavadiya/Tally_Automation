@@ -1,6 +1,6 @@
 // src/components/InvoiceMapping.jsx
 import './InvoiceMapping.css';
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAppState } from '../context/AppstateContext';
 import { invoices as invoiceApi, vouchers as voucherApi } from '../services/api';
 import ItemMappingGrid from './ItemMappingGrid';
@@ -49,7 +49,6 @@ function buildInvoicePayload(inv, company, config, voucherTypeName, invoiceType)
   };
 }
 
-// Trigger browser download from a blob response
 function triggerBlobDownload(blobData, filename) {
   const blob = blobData instanceof Blob
     ? blobData
@@ -68,11 +67,11 @@ const InvoiceMapping = () => {
   const {
     companies, uploadedInvoices, setInvoices, clearInvoices,
     mappingStatus, updateMappingStatus,
+    activeCompanyId, setActiveCompanyId, loadInvoicesForCompany // 🟢 Pulled from context
   } = useAppState();
 
-  const [step,            setStep]           = useState(uploadedInvoices.length > 0 ? 1 : 0);
+  const [step,            setStep]            = useState(0);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
-  const [selectedCoId,    setSelectedCoId]    = useState(companies[0]?.id || '');
   const [uploading,       setUploading]       = useState(false);
   const [error,           setError]           = useState(null);
   const [page,            setPage]            = useState(1);
@@ -89,13 +88,38 @@ const InvoiceMapping = () => {
 
   const fileRef = useRef();
 
-  const activeCompany  = companies.find((c) => c.id === Number(selectedCoId));
+  // 🟢 Dynamically get the active company based on global state
+  const activeCompany  = companies.find((c) => c.id === activeCompanyId);
   const totalPages     = Math.ceil(uploadedInvoices.length / pageSize);
   const paged          = uploadedInvoices.slice((page - 1) * pageSize, page * pageSize);
 
   const { types: sessionTypes } = getSessionSettings();
   const voucherTypeOptions = sessionTypes[invoiceType] ||
     (invoiceType === 'purchase' ? ['Purchase'] : invoiceType === 'sales' ? ['Sales'] : ['Journal']);
+
+  // ════════════════════════════════════════════════════════════════
+  // 🟢 NEW: Lifecycle hooks to sync company and invoices
+  // ════════════════════════════════════════════════════════════════
+  
+  // 1. Auto-select first company if none is active
+  useEffect(() => {
+    if (!activeCompanyId && companies.length > 0) {
+      setActiveCompanyId(companies[0].id);
+    }
+  }, [companies, activeCompanyId, setActiveCompanyId]);
+
+
+
+  // 3. Auto-adjust the UI Step: 
+  // If no invoices exist, show Upload Screen (0). If invoices exist, show List (1).
+  useEffect(() => {
+    if (uploadedInvoices.length > 0 && step === 0) {
+      setStep(1);
+    } else if (uploadedInvoices.length === 0 && step > 0) {
+      setStep(0);
+    }
+  }, [uploadedInvoices.length, step]);
+
 
   // ── Upload ─────────────────────────────────────────────────────
   const handleFile = async (file) => {
@@ -138,10 +162,6 @@ const InvoiceMapping = () => {
     );
   };
 
-  // ── Smart XML download ─────────────────────────────────────────
-  // 1 selected  → single file:   {VoucherType}_{InvoiceNo}.xml
-  // N selected  → combined file: {VoucherType}_bulk_Ninvoices_{date}.xml
-  //               All N vouchers are inside ONE <ENVELOPE>, ONE Tally import
   const handleXmlDownload = async () => {
     if (!selectedForXml.size) { alert('Select at least one invoice first'); return; }
     if (!activeCompany)       { alert('Select a company above first');      return; }
@@ -155,15 +175,12 @@ const InvoiceMapping = () => {
         selectedForXml.has(inv.invoice_no)
       );
 
-      // Build payload array for every selected invoice
       const vouchersArray = invoicesToProcess.map((inv) =>
         buildInvoicePayload(inv, activeCompany, config, resolvedVoucherType, invoiceType)
       );
 
-      // Call /download-bulk — backend decides single vs combined XML
       const res = await voucherApi.downloadBulk(activeCompany.company_name, vouchersArray);
 
-      // Determine filename
       let filename;
       if (invoicesToProcess.length === 1) {
         const inv      = invoicesToProcess[0];
@@ -188,7 +205,6 @@ const InvoiceMapping = () => {
     }
   };
 
-  // ── Status badge ───────────────────────────────────────────────
   const statusBadge = (inv_no) => {
     const s = mappingStatus[inv_no];
     if (!s || s.total === 0) return <span className="badge badge-gray">Pending</span>;
@@ -197,7 +213,6 @@ const InvoiceMapping = () => {
     return                           <span className="badge badge-gray">Pending</span>;
   };
 
-  // ── Open invoice type modal ────────────────────────────────────
   const openMapStep = (inv) => {
     setSelectedInvoice(inv);
     setShowTypeModal(true);
@@ -208,11 +223,9 @@ const InvoiceMapping = () => {
     setStep(2);
   };
 
-  // ── Render ─────────────────────────────────────────────────────
   return (
     <div className="invoice-mapping">
 
-      {/* Invoice Type Modal */}
       {showTypeModal && (
         <div className="modal-overlay" onClick={() => setShowTypeModal(false)}>
           <div className="modal-box" onClick={(e) => e.stopPropagation()}
@@ -238,10 +251,12 @@ const InvoiceMapping = () => {
 
             <div className="form-group" style={{ marginTop: 14 }}>
               <label className="form-label">Voucher Type (from Tally)</label>
-              <select className="form-control" value={voucherType}
-                onChange={(e) => setVoucherType(e.target.value)}>
-                {voucherTypeOptions.map((vt) => <option key={vt} value={vt}>{vt}</option>)}
-              </select>
+              <select className="form-control" value={activeCompanyId || ''}
+            onChange={(e) => loadInvoicesForCompany(Number(e.target.value))}
+            style={{ width: 210 }}>
+            <option value="">— select —</option>
+            {companies.map((c) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
+          </select>
               {voucherTypeOptions.length <= 1 && (
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
                   Add more types in ⚙️ Settings → Voucher Types
@@ -271,12 +286,15 @@ const InvoiceMapping = () => {
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <label className="form-label" style={{ marginBottom: 0, whiteSpace: 'nowrap' }}>Company:</label>
-          <select className="form-control" value={selectedCoId}
-            onChange={(e) => setSelectedCoId(Number(e.target.value))}
+          
+          {/* 🟢 CONNECTED TO GLOBAL activeCompanyId */}
+          <select className="form-control" value={activeCompanyId || ''}
+            onChange={(e) => setActiveCompanyId(Number(e.target.value))}
             style={{ width: 210 }}>
             <option value="">— select —</option>
             {companies.map((c) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
           </select>
+
         </div>
       </div>
 
@@ -325,14 +343,12 @@ const InvoiceMapping = () => {
             </div>
           </div>
 
-          {/* XML download controls — shown when at least one invoice is checked */}
           {selectedForXml.size > 0 && (
             <div style={{
               display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap',
               padding: '10px 14px', background: 'var(--bg-secondary)',
               border: '1px solid var(--border)', borderRadius: 8, marginBottom: 12,
             }}>
-              {/* Invoice type toggles */}
               <span style={{ fontSize: 13, fontWeight: 500 }}>
                 {selectedForXml.size === 1 ? '1 invoice' : `${selectedForXml.size} invoices`} selected:
               </span>
@@ -346,14 +362,12 @@ const InvoiceMapping = () => {
                 ))}
               </div>
 
-              {/* Voucher type dropdown */}
               <select className="form-control" style={{ width: 180 }}
                 value={voucherType}
                 onChange={(e) => setVoucherType(e.target.value)}>
                 {voucherTypeOptions.map((vt) => <option key={vt} value={vt}>{vt}</option>)}
               </select>
 
-              {/* The main download button */}
               <button
                 className="btn btn-primary btn-sm"
                 disabled={!activeCompany || xmlDownloading}
@@ -373,14 +387,6 @@ const InvoiceMapping = () => {
                     : `⬇️ Download ${selectedForXml.size} invoices as 1 XML`
                 }
               </button>
-
-              {/* Helper text */}
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                {selectedForXml.size === 1
-                  ? 'Single XML file'
-                  : 'Combined XML — one Tally import for all'
-                }
-              </span>
             </div>
           )}
 

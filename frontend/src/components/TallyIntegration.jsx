@@ -5,11 +5,14 @@ import { companies as companiesApi } from '../services/api';
 import { useAppState } from '../context/AppstateContext';
 
 const TallyIntegration = ({ setActiveMenu, onSuccess }) => {
-  const { companies, addOrUpdateCompany } = useAppState();
+  const { companies, addOrUpdateCompany, activeCompanyId, setActiveCompanyId } = useAppState();
   const [companyName, setCompanyName] = useState('');
   const [connecting,  setConnecting]  = useState(false);
   const [masters,     setMasters]     = useState(null);
   const [error,       setError]       = useState(null);
+  
+  // 🟢 NEW: State for our custom popup
+  const [connectWarning, setConnectWarning] = useState(null);
 
   const handleConnect = async () => {
     if (!companyName.trim()) return;
@@ -19,8 +22,16 @@ const TallyIntegration = ({ setActiveMenu, onSuccess }) => {
     try {
       const res  = await companiesApi.connect(companyName.trim());
       const data = res.data;
+
+      // 🟢 Trigger custom popup instead of ugly alert
+      if (!data.ledgers || data.ledgers.length === 0) {
+        setConnectWarning(`Company "${data.company_name || companyName.trim()}" is NOT OPEN in Tally!\n\nPlease open this exact company in Tally Prime, then click Connect again to fetch your ledgers.`);
+        return;
+      }
+      
       setMasters(data);
       addOrUpdateCompany(data);
+      setActiveCompanyId(data.id);
       if (onSuccess) await onSuccess();
       setCompanyName('');
     } catch (e) {
@@ -32,6 +43,33 @@ const TallyIntegration = ({ setActiveMenu, onSuccess }) => {
 
   return (
     <div className="tally-page">
+      
+      {/* 🟢 NEW: Custom In-App Modal Popup */}
+      {connectWarning && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 9999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          backdropFilter: 'blur(3px)'
+        }} onClick={() => setConnectWarning(null)}>
+          <div style={{
+            background: 'var(--bg-primary, #ffffff)', padding: '30px 32px',
+            borderRadius: '12px', maxWidth: '400px', width: '90%',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', 
+            textAlign: 'center', border: '1px solid var(--border)'
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: '18px', color: '#b91c1c' }}>Connection Paused</h3>
+            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '14.5px', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
+              {connectWarning}
+            </p>
+            <button className="btn btn-primary" style={{ marginTop: '24px', width: '100%', padding: '10px' }} onClick={() => setConnectWarning(null)}>
+              Okay, I'll open it
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="card">
         <div className="card-header">
           <h3 className="card-title">🔌 Connect to Tally Prime</h3>
@@ -64,7 +102,6 @@ const TallyIntegration = ({ setActiveMenu, onSuccess }) => {
         </div>
       </div>
 
-      {/* Success — show masters after connect */}
       {masters && (
         <div className="card">
           <div className="card-header">
@@ -104,7 +141,6 @@ const TallyIntegration = ({ setActiveMenu, onSuccess }) => {
         </div>
       )}
 
-      {/* All companies — status only, no disconnect */}
       {companies.length > 0 && (
         <div className="card">
           <div className="card-header">
@@ -125,8 +161,7 @@ const TallyIntegration = ({ setActiveMenu, onSuccess }) => {
               </thead>
               <tbody>
                 {companies.map((c) => {
-                  // Active = has ledgers loaded in this session
-                  const isActive = c.ledgers?.length > 0;
+                  const isActive = c.id === activeCompanyId;
                   return (
                     <tr key={c.id}>
                       <td><strong>{c.company_name}</strong></td>

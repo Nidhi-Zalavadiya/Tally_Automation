@@ -226,9 +226,9 @@ def clear_invoices(
     """Clear saved invoices for this user (explicit 'Start Fresh' action)."""
 
     db.execute(text("""
-        UPDATE user_settings
-        SET invoices = '[]'\::jsonb, mapping_status = '{}'\::jsonb, updated_at = NOW()
-        WHERE user_id = :uid AND company_id = :cid
-    """), {"uid": current_user["id"], "cid":company_id})
+    UPDATE user_settings
+    SET invoices = '[]'::jsonb, mapping_status = '{}'::jsonb, updated_at = NOW()
+    WHERE user_id = :uid AND company_id = :cid
+"""), {"uid": current_user["id"], "cid": company_id})
     db.commit()
     return {"ok": True, "message": "Invoices cleared"}

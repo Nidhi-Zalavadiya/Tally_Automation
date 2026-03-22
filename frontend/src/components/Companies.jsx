@@ -1,18 +1,17 @@
 // src/components/Companies.jsx
 import React, { useState } from 'react';
-import { companies as companiesApi } from '../services/api';
 import { useAppState } from '../context/AppstateContext';
 
-// activeCompanyIds = Set of company IDs currently synced this session
-const Companies = ({ companies = [], activeCompanyIds = new Set(), onReconnect, setActiveMenu }) => {
-  const [search,       setSearch]       = useState('');
-  const [reconnecting, setReconnecting] = useState(null); // company id being reconnected
+const Companies = ({ setActiveMenu }) => {
+  const { companies, activeCompanyId, refreshCompanyMasters } = useAppState();
+  
+  const [search, setSearch] = useState('');
+  const [reconnecting, setReconnecting] = useState(null);
+  
+  // 🟢 NEW: State to control our beautiful custom popup
+  const [syncError, setSyncError] = useState(null);
 
-  // Normalize — backend returns { companies: [...] } or plain array
-  const safeCompanies = Array.isArray(companies)
-    ? companies
-    : (companies?.companies || []);
-
+  const safeCompanies = Array.isArray(companies) ? companies : (companies?.companies || []);
   const filtered = safeCompanies.filter((c) =>
     c?.company_name?.toLowerCase().includes(search.toLowerCase())
   );
@@ -20,9 +19,20 @@ const Companies = ({ companies = [], activeCompanyIds = new Set(), onReconnect, 
   const handleReconnect = async (company) => {
     setReconnecting(company.id);
     try {
-      if (onReconnect) await onReconnect(company.company_name);
+      const res = await refreshCompanyMasters(company.id); 
+      
+      // 🟢 Trigger our custom popup instead of the ugly browser alert
+      if (res && res.ok === false) {
+        setSyncError(res.message);
+      }
     } catch (e) {
-      alert('Reconnect failed: ' + (e.response?.data?.detail || e.message));
+      let errorMsg = e.message;
+      if (e.response?.data?.detail) {
+        errorMsg = typeof e.response.data.detail === 'string' 
+          ? e.response.data.detail 
+          : JSON.stringify(e.response.data.detail);
+      }
+      setSyncError(errorMsg);
     } finally {
       setReconnecting(null);
     }
@@ -30,6 +40,33 @@ const Companies = ({ companies = [], activeCompanyIds = new Set(), onReconnect, 
 
   return (
     <div className="companies-page">
+      
+      {/* 🟢 NEW: Custom In-App Modal Popup */}
+      {syncError && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 9999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          backdropFilter: 'blur(3px)'
+        }} onClick={() => setSyncError(null)}>
+          <div style={{
+            background: 'var(--bg-primary, #ffffff)', padding: '30px 32px',
+            borderRadius: '12px', maxWidth: '400px', width: '90%',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', 
+            textAlign: 'center', border: '1px solid var(--border)'
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: '18px', color: '#b91c1c' }}>Sync Failed</h3>
+            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '14.5px', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
+              {syncError}
+            </p>
+            <button className="btn btn-primary" style={{ marginTop: '24px', width: '100%', padding: '10px' }} onClick={() => setSyncError(null)}>
+              Okay, I'll open it
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="page-header">
         <div>
           <h2>Companies</h2>
@@ -81,8 +118,9 @@ const Companies = ({ companies = [], activeCompanyIds = new Set(), onReconnect, 
                 </tr>
               ) : (
                 filtered.map((c) => {
-                  const isActive = activeCompanyIds.has(c.id);
+                  const isActive = activeCompanyId === c.id;
                   const isReconnecting = reconnecting === c.id;
+                  
                   return (
                     <tr key={c.id}>
                       <td><strong>{c.company_name}</strong></td>
@@ -137,7 +175,6 @@ const Companies = ({ companies = [], activeCompanyIds = new Set(), onReconnect, 
         </div>
       </div>
 
-      {/* Info note */}
       <div className="alert alert-info" style={{ marginTop: 16, fontSize: 13 }}>
         💡 <strong>Why Inactive?</strong> Ledger and stock item data is fetched live from Tally when you connect.
         After logout, the session clears. Click <strong>Re-sync</strong> to reconnect to Tally and reload masters.
