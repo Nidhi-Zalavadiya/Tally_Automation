@@ -33,6 +33,7 @@ const UNIT_ABBR = {
   'pack':'pk','packs':'pk','packet':'pk',
   'bag':'bg','bags':'bg','bundle':'bn','bundles':'bn',
   'tablet':'tab','tablets':'tab','strip':'str','strips':'str',
+  'crt':'c'
 };
 
 function getTallyQty(qty, primaryUnit, altUnit) {
@@ -252,6 +253,7 @@ export default function ItemMappingGrid({
   const [showInvoiceInfo, setShowInvoiceInfo] = useState(true); // always visible on open
   const [buyerGstin , setBuyerGstin] = useState(einvoiceBuyerGstin);
   const [buyerAddress , setBuyerAddress] = useState(einvoiceBuyerAddress);
+  const [otherCharges, setOtherCharges] = useState(invoice.other_charges || 0);
   // ── Ledger settings ────────────────────────────────────────────
   const [settings, setSettings] = useState({
     igst_ledger:     sessionConfig.igst_ledger     || 'Input IGST',
@@ -498,7 +500,7 @@ export default function ItemMappingGrid({
       igst_ledger:        settings.igst_ledger,
       roundoff_ledger:    settings.roundoff_ledger,
       freight_ledger:     settings.freight_ledger,
-      other_charges:      parseFloat(invoice.other_charges || 0),
+      other_charges:      parseFloat(otherCharges || 0),
       round_off:          parseFloat(invoice.round_off     || 0),
     };
   };
@@ -564,7 +566,7 @@ export default function ItemMappingGrid({
   };
 
   const mappedCount = items.filter((i) => i.mappedItem).length;
-  const grandTotal  = items.reduce((s, i) => s + i.total, 0);
+  const grandTotal  = items.reduce((s, i) => s + i.total, 0) + parseFloat(otherCharges || 0);
 
   // ── Render ─────────────────────────────────────────────────────
   return (
@@ -719,6 +721,20 @@ export default function ItemMappingGrid({
                   <option value="">— Select State —</option>
                   {INDIAN_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
+              </div>
+              {/* Freight / Charges Input */}
+              <div className="party-field">
+                <label className="form-label">
+                  Freight / Charges <span className="field-source">(₹)</span>
+                </label>
+                <input
+                  type="number"
+                  className="form-control"
+                  value={otherCharges}
+                  onChange={(e) => setOtherCharges(e.target.value)}
+                  placeholder="0.00"
+                  step="0.01"
+                />
               </div>
 
               {/* GST Type */}

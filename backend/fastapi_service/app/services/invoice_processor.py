@@ -69,6 +69,12 @@ class InvoiceProcessorService:
     def extract_invoice_structure(raw_invoice: Dict) -> Dict:
         doc    = raw_invoice.get("DocDtls",    {})
         val    = raw_invoice.get("ValDtls",    {})
+
+
+        
+
+        seller = raw_invoice.get("SellerDtls", {})
+
         seller = raw_invoice.get("SellerDtls", {})
         buyer  = raw_invoice.get("BuyerDtls",  {})
         items  = raw_invoice.get("ItemList",   [])
@@ -85,6 +91,12 @@ class InvoiceProcessorService:
         buyer_gstin  = buyer.get("Gstin", "")
         buyer_addr   = buyer.get("Addr1", "")
         buyer_state  = GSTIN_STATE_MAP.get(buyer.get("Stcd", ""), "") or gstin_to_state(buyer_gstin)
+        total_amount = Decimal(str(val.get("TotInvVal", 0)))
+        other_charges = Decimal(str(val.get("OthChrg", 0))) - Decimal(str(val.get("Discount", 0)))
+        # 1. Try to get the explicit round off from the JSON
+        round_off = Decimal(str(val.get("RndOffAmt", 0)))
+
+        
 
         # Items
         processed_items = []
@@ -102,7 +114,11 @@ class InvoiceProcessorService:
                 "igst":           Decimal(str(item.get("IgstAmt",   0))),
                 "total":          Decimal(str(item.get("TotItemVal",0))),
             })
-
+        # 2. If it's missing or zero, calculate the difference manually
+        if round_off == Decimal("0"):
+            items_total = sum((item["total"] for item in processed_items), Decimal("0"))
+            round_off = total_amount - (items_total + other_charges)
+        # print(round_off)
         return {
             "invoice_no":   doc.get("No",  ""),
             "invoice_date": doc.get("Dt",  ""),
@@ -120,13 +136,16 @@ class InvoiceProcessorService:
                 "state":   buyer_state,
             },
             "items":          processed_items,
-            "total_amount":   Decimal(str(val.get("TotInvVal", 0))),
+            # "total_amount":   Decimal(str(val.get("TotInvVal", 0))),
+            "total_amount":   total_amount,
             "cgst":           Decimal(str(val.get("CgstVal",   0))),
             "sgst":           Decimal(str(val.get("SgstVal",   0))),
             "igst":           Decimal(str(val.get("IgstVal",   0))),
             "is_interstate":  is_interstate,
-            "other_charges":  Decimal(str(val.get("OthChrg",   0))),
-            "round_off":      Decimal(str(val.get("RndOffAmt", 0))),
+            # "other_charges":  Decimal(str(val.get("OthChrg", 0))) - Decimal(str(val.get("Discount", 0))),
+            # "round_off":      Decimal(str(val.get("RndOffAmt", 0))),
+            "other_charges":  other_charges,
+            "round_off":      round_off,
             # Convenience top-level for frontend
             "place_of_supply": buyer_state,
         }

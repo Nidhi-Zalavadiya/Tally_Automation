@@ -6,7 +6,7 @@ Think of them as TypeScript interfaces for Python.
 """
 
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import Dict, List, Optional
 from datetime import datetime
 from decimal import Decimal
 
@@ -83,6 +83,8 @@ class Invoice(BaseModel):
     sgst: Decimal = 0
     igst: Decimal = 0
     is_interstate: bool = False  # Determined by IGST > 0
+    other_charges: Decimal = 0
+    round_off: Decimal = 0
 
 
 class ParsedInvoicesResponse(BaseModel):
@@ -145,6 +147,18 @@ class GenerateVoucherRequest(BaseModel):
     sgst_ledger: Optional[str] = None
     igst_ledger: Optional[str] = None
     purchase_ledger: str = "Purchase"  # Default purchase ledger
+    # ➕ ADD THESE NEW FIELDS (and the gst_ledger_entries you are using in React!)
+    other_charges: Decimal = 0
+    round_off: Decimal = 0
+    gst_ledger_entries: Optional[List[Dict]] = None
+    place_of_supply: Optional[str] = ""
+    party_state: Optional[str] = ""
+    buyer_gstin: Optional[str] = ""
+    buyer_address: Optional[str] = ""
+    voucher_type: Optional[str] = "Purchase"
+    supplier_gstin: Optional[str] = ""
+    roundoff_ledger: Optional[str] = "Round Off"
+    freight_ledger: Optional[str] = "Freight Charges"
 
 
 class VoucherResponse(BaseModel):

@@ -95,6 +95,7 @@
   font-size: 11px;
   color: var(--text2);
   margin-bottom: 2px;
+  
 }
 .party-ledger-hint em { color: var(--accent); font-style: normal; font-weight: 600; }
 

@@ -26,7 +26,7 @@ TAGS ADDED vs ORIGINAL:
   TAXOBJECTTYPES.LIST per inventory item, GSTDETAILS.LIST (voucher GST summary)
 """
 
-from decimal import Decimal
+from decimal import Decimal,ROUND_HALF_UP
 from typing import List, Dict, Optional
 from datetime import datetime
 
@@ -104,6 +104,16 @@ class VoucherBuilderService:
         else:
             tax_total = cgst_total + sgst_total + igst_total
 
+        exact_total = items_total + tax_total + other_charges
+        
+        # If round_off is 0 and there are decimal values present
+        if round_off == Decimal("0") and exact_total % Decimal("1") != Decimal("0"):
+            # Round to the nearest whole integer using standard accounting rules
+            rounded_total = exact_total.quantize(Decimal('1'), rounding=ROUND_HALF_UP)
+            
+            # The difference becomes the round-off amount
+            round_off = rounded_total - exact_total
+            # print(round_off)
         total_value = items_total + tax_total + other_charges + round_off
 
         inv_entries = self._build_inventory_entries(items, purchase_ledger)
@@ -413,26 +423,43 @@ class VoucherBuilderService:
                             <AMOUNT>-{self._format_amount(amt)}</AMOUNT>
                         </LEDGERENTRIES.LIST>""")
 
-        # Freight
-        if other_charges > 0:
+       
+        # Freight / Other Charges (Handles both Expense and Subsidy)
+        if other_charges != 0:
+            if other_charges > 0:
+                # Subsidy (Deduction) -> Tally Credit -> "No" -> POSITIVE AMOUNT
+                is_deemed = "No"
+                amt_str = f"-{self._format_amount(abs(other_charges))}"
+            else:
+                # Expense (Addition) -> Tally Debit -> "Yes" -> NEGATIVE AMOUNT
+                is_deemed = "Yes"
+                amt_str = f"{self._format_amount(abs(other_charges))}"
+                
             entries.append(f"""
                         <LEDGERENTRIES.LIST>
                             <LEDGERNAME>{freight_ledger}</LEDGERNAME>
-                            <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
-                            <ISLASTDEEMEDPOSITIVE>Yes</ISLASTDEEMEDPOSITIVE>
+                            <ISDEEMEDPOSITIVE>{is_deemed}</ISDEEMEDPOSITIVE>
+                            <ISLASTDEEMEDPOSITIVE>{is_deemed}</ISLASTDEEMEDPOSITIVE>
                             <ISPARTYLEDGER>No</ISPARTYLEDGER>
-                            <AMOUNT>-{self._format_amount(other_charges)}</AMOUNT>
+                            <AMOUNT>{amt_str}</AMOUNT>
                         </LEDGERENTRIES.LIST>""")
 
         # Round Off
         if round_off != 0:
-            is_debit = round_off > 0
-            amt_str  = f"-{self._format_amount(abs(round_off))}" if is_debit else f"{self._format_amount(abs(round_off))}"
+            if round_off < 0:
+                # Deducting round off -> POSITIVE AMOUNT
+                is_deemed = "Yes"
+                amt_str = f"{self._format_amount(abs(round_off))}"
+            else:
+                # Adding round off -> NEGATIVE AMOUNT
+                is_deemed = "Yes"
+                amt_str = f"-{self._format_amount(abs(round_off))}"
+                
             entries.append(f"""
                         <LEDGERENTRIES.LIST>
                             <LEDGERNAME>{roundoff_ledger}</LEDGERNAME>
-                            <ISDEEMEDPOSITIVE>{"Yes" if is_debit else "No"}</ISDEEMEDPOSITIVE>
-                            <ISLASTDEEMEDPOSITIVE>{"Yes" if is_debit else "No"}</ISLASTDEEMEDPOSITIVE>
+                            <ISDEEMEDPOSITIVE>{is_deemed}</ISDEEMEDPOSITIVE>
+                            <ISLASTDEEMEDPOSITIVE>{is_deemed}</ISLASTDEEMEDPOSITIVE>
                             <ISPARTYLEDGER>No</ISPARTYLEDGER>
                             <AMOUNT>{amt_str}</AMOUNT>
                         </LEDGERENTRIES.LIST>""")
