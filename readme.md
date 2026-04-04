@@ -1,20 +1,105 @@
-# ERP Integration Platform - FastAPI Backend
+# EInvoice Pro — GST e-Invoice to Tally ERP Automation
 
-## 🎯 Overview
+> Full-stack SaaS platform that decodes Government e-Invoice signed JSON (IRN) and automatically pushes Purchase Vouchers into Tally Prime — reducing invoice processing from **3-4 hours/day to under 60 seconds**.
 
-Production-grade FastAPI backend for E-Invoice to Tally Prime conversion platform.
-
-**Features:**
-- ✅ JWT invoice parsing (GST e-invoices)
-- ✅ Tally Prime integration (localhost:9000)
-- ✅ Smart product mapping with suggestions
-- ✅ Purchase voucher XML generation
-- ✅ Multi-invoice bulk processing
-- ✅ PostgreSQL persistence
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat&logo=fastapi&logoColor=white)
+![Django](https://img.shields.io/badge/Django-092E20?style=flat&logo=django&logoColor=white)
+![React](https://img.shields.io/badge/React-20232A?style=flat&logo=react&logoColor=61DAFB)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=flat&logo=postgresql&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white)
 
 ---
 
-## 📁 Project Structure
+## What It Does
+
+Accounting teams spend hours manually downloading e-Invoices from the Government portal and entering them into Tally line by line. EInvoice Pro eliminates that entirely.
+
+**3-step workflow:**
+1. **Upload** — Import Government e-Invoice signed JSON (IRN format)
+2. **Map** — Link supplier company and line items to Tally masters (saved in DB — configure once, auto-maps forever)
+3. **Push** — Preview XML → Download XML → Export Excel → or Push directly to Tally ERP in one click
+
+---
+
+## Screenshots
+
+> Upload and decode multiple invoices at once
+
+![Invoice List](screenshots/invoice-list.png)
+
+> Smart item mapping with party, ledger, and GST configuration
+
+![Item Mapping](screenshots/item-mapping.png)
+
+> Company connection via Tally Prime
+
+![Companies](screenshots/companies.png)
+
+> Email OTP authentication
+
+![Auth](screenshots/auth.png)
+
+---
+
+## Features
+
+- **JWT/IRN Decoding** — Decodes digitally signed Government e-Invoice JSON payloads
+- **Auto GST Detection** — Detects Intrastate (CGST+SGST) vs Interstate (IGST) and supplier state from GSTIN
+- **Smart Item Mapping** — Fuzzy match + exact match suggestions; mappings saved in PostgreSQL for reuse
+- **Tally Prime Integration** — Sends Purchase Voucher XML directly to Tally via HTTP API
+- **Multi-format Export** — Preview XML, Download XML, Export to Excel
+- **Bulk Processing** — Process 17+ invoices in a single session
+- **Audit Trail** — All invoices and mappings stored in PostgreSQL for compliance
+- **Freight & Charges** — Handles additional charges and ledger assignment
+
+---
+
+## Business Impact
+
+- Reduced invoice processing: **3-4 hours/day → under 60 seconds**
+- **Zero** manual data entry errors
+- Smart mapping memory — repeat supplier invoices need **zero re-configuration**
+- Used in production at an accounting firm in Ahmedabad
+
+---
+
+## Architecture
+
+```
+React Frontend (Port 3000)
+        ↓  HTTP / REST
+FastAPI Backend (Port 8000)  ←→  Django ORM + PostgreSQL
+        ↓  HTTP / XML
+  Tally Prime (Port 9000)
+        ↑
+  Govt e-Invoice JSON (IRN)
+```
+
+**Mapping Intelligence:**
+```
+User maps: "SAVAJ DAIRY MILK" → "Milk 500ml PKT"
+    ↓ saved to PostgreSQL
+Next invoice from same supplier
+    ↓
+Auto-suggested with 100% confidence — no re-mapping needed
+```
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Backend API | FastAPI + Django REST Framework |
+| Frontend | React.js |
+| Database | PostgreSQL |
+| ERP Integration | Tally Prime HTTP/XML API |
+| Auth | Email OTP (6-digit code) |
+| Invoice Parsing | Government e-Invoice IRN/JWT decoding |
+
+---
+
+## Project Structure
 
 ```
 fastapi_app/
@@ -37,310 +122,115 @@ fastapi_app/
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
-### 1. Install Dependencies
+### 1. Clone and install
 
 ```bash
-# Create virtual environment
-python -m venv venv
+git clone https://github.com/Nidhi-Zalavadiya/Tally_Automation.git
+cd Tally_Automation
 
-# Activate it
+python -m venv venv
 # Windows:
 venv\Scripts\activate
 # Mac/Linux:
 source venv/bin/activate
 
-# Install packages
 pip install -r requirements.txt
 ```
 
-### 2. Configure Database
+### 2. Configure environment
 
-Your Django database is already set up. FastAPI uses the same PostgreSQL database.
+Create a `.env` file in the project root (see `.env.example`):
 
-**Database credentials** (from your Django settings):
-- Host: `localhost`
-- Port: `5432`
-- Database: `tally_automation_db`
-- User: `postgres`
-- Password: `Nidhi`
+```env
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=tally_automation_db
+DB_USER=your_db_user
+DB_PASSWORD=your_db_password
+TALLY_URL=http://localhost:9000
+```
+
+> ⚠️ Never commit your `.env` file. It is already in `.gitignore`.
 
 ### 3. Start Tally Prime
 
-**IMPORTANT:** Before starting the API, make sure:
-1. Tally Prime is running
-2. ODBC server is enabled on port 9000
-3. Your company is open in Tally
+1. Open Tally Prime with your company
+2. Press `F12` → Advanced Configuration
+3. Set ODBC Server to `Yes`, Port: `9000`
 
-**Enable ODBC in Tally:**
-- Press `F12` (Configure)
-- Go to Advanced Configuration
-- Set "ODBC Server" to `Yes`
-- Port: `9000`
-
-### 4. Run FastAPI Server
+### 4. Run the server
 
 ```bash
-# From project root directory
 uvicorn fastapi_app.main:app --reload --port 8000
 ```
 
-You should see:
-```
-🚀 FastAPI server starting...
-📖 API Documentation: http://localhost:8000/docs
-🔌 Tally connection: localhost:9000
-INFO:     Uvicorn running on http://127.0.0.1:8000
-```
-
-### 5. Test the API
-
-Open browser: **http://localhost:8000/docs**
-
-You'll see Swagger UI with all endpoints ready to test!
+API docs available at: **http://localhost:8000/docs**
 
 ---
 
-## 📡 API Endpoints
+## API Endpoints
 
 ### Tally Operations
-
 ```
-POST   /api/tally/connect
-       Connect to Tally and fetch masters (Ledgers, Stock Items, Units)
-
-GET    /api/tally/item/{item_name}
-       Get specific item details (rate, MRP, unit)
-
-POST   /api/tally/send-voucher
-       Send voucher XML to Tally for import
+POST   /api/tally/connect          Connect to Tally, fetch ledgers/stock items/units
+GET    /api/tally/item/{name}      Get item details (rate, MRP, unit)
+POST   /api/tally/send-voucher     Send XML voucher to Tally
 ```
 
 ### Invoice Processing
-
 ```
-POST   /api/invoices/parse
-       Parse uploaded JWT JSON file
-
-POST   /api/invoices/parse-text
-       Parse invoice data sent as JSON body
+POST   /api/invoices/parse         Parse uploaded IRN JSON file
+POST   /api/invoices/parse-text    Parse invoice JSON from request body
 ```
 
 ### Mapping & Suggestions
-
 ```
-POST   /api/mappings/suggest
-       Get mapping suggestion for a product
-
-POST   /api/mappings/save
-       Save a new mapping
-
-GET    /api/mappings/company/{company_id}
-       Get all mappings for a company
-
-POST   /api/mappings/bulk-suggest
-       Get suggestions for multiple products at once
+POST   /api/mappings/suggest       Get mapping suggestion for a product
+POST   /api/mappings/save          Save a new mapping
+GET    /api/mappings/company/{id}  Get all mappings for a company
+POST   /api/mappings/bulk-suggest  Bulk suggestions for multiple products
 ```
 
 ### Voucher Generation
-
 ```
-POST   /api/vouchers/generate
-       Generate Tally Purchase voucher XML
-
-POST   /api/vouchers/generate-and-send
-       Generate XML and send to Tally immediately
-
-POST   /api/vouchers/download
-       Generate XML and download as file
+POST   /api/vouchers/generate           Generate Tally Purchase XML
+POST   /api/vouchers/generate-and-send  Generate and push to Tally immediately
+POST   /api/vouchers/download           Generate and download XML file
 ```
 
 ---
 
-## 🧪 Testing the Workflow
+## Troubleshooting
 
-### Test 1: Connect to Tally
-
-```bash
-curl -X POST "http://localhost:8000/api/tally/connect" \
-  -H "Content-Type: application/json" \
-  -d '{"company_name": "Your Company Name"}'
-```
-
-**Expected Response:**
-```json
-{
-  "company_name": "Your Company Name",
-  "ledgers": ["Ledger1", "Ledger2", ...],
-  "stock_items": ["Item1", "Item2", ...],
-  "units": ["Nos", "Kgs", ...],
-  "message": "Successfully connected to Your Company Name"
-}
-```
-
-### Test 2: Parse Invoice (Using Swagger UI)
-
-1. Go to http://localhost:8000/docs
-2. Find `POST /api/invoices/parse`
-3. Click "Try it out"
-4. Upload your JWT JSON file
-5. Click "Execute"
-
-### Test 3: Get Mapping Suggestion
-
-```bash
-curl -X POST "http://localhost:8000/api/mappings/suggest" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "company_id": 1,
-    "json_description": "Apple iPhone 15",
-    "tally_items": ["iPhone 15", "iPhone 15 Pro", "Samsung Galaxy"]
-  }'
-```
-
-### Test 4: Generate Voucher
-
-Use Swagger UI at `/docs` - it's easier for complex requests!
+| Error | Solution |
+|---|---|
+| Cannot connect to Tally | Check Tally is running, ODBC enabled on port 9000 |
+| Database connection failed | Verify `.env` credentials, check PostgreSQL is running |
+| ModuleNotFoundError | Run `pip install -r requirements.txt` |
+| Address already in use | Kill process: `lsof -ti:8000 \| xargs kill -9` |
 
 ---
 
-## 🔧 Configuration
+## Environment Example
 
-### Database Connection
-
-Edit `fastapi_app/core/database.py` if you need to change database credentials:
-
-```python
-DATABASE_URL = "postgresql://postgres:Nidhi@localhost:5432/tally_automation_db"
-```
-
-### Tally URL
-
-Edit `fastapi_app/services/tally_connector.py` if Tally is on a different port:
-
-```python
-TALLY_URL = "http://localhost:9000"  # Change port if needed
-```
-
-### CORS Origins
-
-Edit `fastapi_app/main.py` to allow different frontend URLs:
-
-```python
-origins = [
-    "http://localhost:3000",  # Add your React app URL
-]
+```env
+# .env.example — copy to .env and fill in your values
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=tally_automation_db
+DB_USER=postgres
+DB_PASSWORD=your_password_here
+TALLY_URL=http://localhost:9000
+CORS_ORIGINS=http://localhost:3000
 ```
 
 ---
 
-## 🐛 Troubleshooting
+## Author
 
-### Error: "Cannot connect to Tally"
-
-**Solutions:**
-1. Check if Tally Prime is running
-2. Verify ODBC server is enabled (`F12` → Advanced → ODBC Server = Yes)
-3. Confirm port 9000 is not blocked by firewall
-4. Make sure a company is open in Tally
-
-### Error: "Database connection failed"
-
-**Solutions:**
-1. Check PostgreSQL is running
-2. Verify credentials in `database.py`
-3. Test connection: `psql -U postgres -d tally_automation_db`
-
-### Error: "ModuleNotFoundError"
-
-**Solution:**
-```bash
-pip install -r requirements.txt
-```
-
-### Error: "Address already in use"
-
-**Solution:**
-```bash
-# Kill process on port 8000
-# Windows:
-netstat -ano | findstr :8000
-taskkill /PID <PID> /F
-
-# Mac/Linux:
-lsof -ti:8000 | xargs kill -9
-```
-
----
-
-## 🎓 How It Works (Architecture Explanation)
-
-### 1. Tally Communication Flow
-
-```
-React Frontend
-    ↓ (HTTP Request)
-FastAPI Backend
-    ↓ (XML Request)
-Tally Prime localhost:9000
-    ↓ (XML Response)
-FastAPI Backend
-    ↓ (JSON Response)
-React Frontend
-```
-
-### 2. Mapping Intelligence
-
-```
-User Maps: "Apple iPhone" → "iPhone 15 Pro"
-    ↓
-Saved to PostgreSQL (companies_productmapping table)
-    ↓
-Next time "Apple iPhone" appears
-    ↓
-System auto-suggests "iPhone 15 Pro" (confidence: 100%)
-```
-
-### 3. Smart Suggestion Algorithm
-
-1. **Exact Match**: Checks if product was mapped before
-2. **Fuzzy Match**: Finds similar product names (>75% similarity)
-3. **Tally Exact**: Checks if JSON description exists in Tally
-4. **No Match**: User manually selects from dropdown
-
----
-
-## 🚀 Next Steps
-
-Now that your backend is running:
-
-1. **Test all endpoints** using Swagger UI
-2. **Set up React frontend** (I'll help with this next)
-3. **Build AG Grid** for item mapping
-4. **Integrate with Django auth** (optional)
-
----
-
-## 📞 Need Help?
-
-If you encounter issues:
-1. Check the console logs
-2. Review Swagger UI docs at `/docs`
-3. Test Tally connection directly
-4. Verify database tables exist
-
----
-
-## 🎉 Success Checklist
-
-- [ ] FastAPI server running on port 8000
-- [ ] Swagger UI accessible at /docs
-- [ ] Tally Prime running with ODBC enabled
-- [ ] Database connection working
-- [ ] Can fetch Tally masters successfully
-- [ ] Can parse JWT invoices
-- [ ] Mapping suggestions working
-- [ ] XML generation successful
-
-Once all checked, you're ready for frontend integration! 🚀
+**Nidhi Zalavadiya** — Python Full-Stack Developer  
+📍 Gujarat, India  
+💼 [LinkedIn](https://linkedin.com/in/nidhizavalaiya) · 🐙 [GitHub](https://github.com/Nidhi-Zalavadiya)  
+📧 nidhizalavadiya2707@gmail.com
