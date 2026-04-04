@@ -22,6 +22,11 @@ Accounting teams spend hours manually downloading e-Invoices from the Government
 ---
 
 ## Screenshots
+![Auth](<img width="789" height="558<img width="789" height="558" alt="Screenshot 2026-04-04 123159" src="https://github.com/user-attachments/assets/461e5aa5-4181-42e9-a5ff-6691a0acea65" />
+" alt="image" src="https://github.com/user-attachments/assets/9f90ecfc-eaa0-4b28-886d-4ef99c471daf" />
+)
+
+> Email OTP authentication
 
 > Upload and decode multiple invoices at once
 
@@ -35,9 +40,7 @@ Accounting teams spend hours manually downloading e-Invoices from the Government
 
 ![Companies](screenshots/companies.png)
 
-> Email OTP authentication
 
-![Auth](screenshots/auth.png)
 
 ---
 
