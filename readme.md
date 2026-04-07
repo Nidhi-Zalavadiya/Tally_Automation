@@ -135,9 +135,21 @@ fastapi_app/
 ### 1. Clone and install
 
 ```bash
+# 1. Clone the repository and navigate into it
 git clone https://github.com/Nidhi-Zalavadiya/Tally_Automation.git
 cd Tally_Automation
-backend\myenv\Scripts\activate
+
+# 2. Create the virtual environment (named 'myenv')
+python -m venv myenv
+
+# 3. Activate the virtual environment
+# ---> If you are on Windows:
+myenv\Scripts\activate
+# ---> If you are on macOS/Linux:
+source myenv/bin/activate
+
+# 4. Install the required dependencies
+pip install -r requirements.txt
 ```
 
 ### 2. Configure environment
