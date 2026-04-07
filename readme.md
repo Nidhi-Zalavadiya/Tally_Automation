@@ -62,7 +62,7 @@ Accounting teams spend hours manually downloading e-Invoices from the Government
 - Reduced invoice processing: **3-4 hours/day → under 60 seconds**
 - **Zero** manual data entry errors
 - Smart mapping memory — repeat supplier invoices need **zero re-configuration**
-- Used in production at an accounting firm in Ahmedabad
+- Used in production at an accounting
 
 ---
 
@@ -71,7 +71,7 @@ Accounting teams spend hours manually downloading e-Invoices from the Government
 ```
 React Frontend (Port 3000)
         ↓  HTTP / REST
-FastAPI Backend (Port 8000)  ←→  Django ORM + PostgreSQL
+FastAPI Backend (Port 8001)  ←→  Django ORM + PostgreSQL
         ↓  HTTP / XML
   Tally Prime (Port 9000)
         ↑
@@ -110,7 +110,10 @@ fastapi_app/
 ├── core/
 │   └── database.py              # PostgreSQL connection
 ├── api/
+|   ├── auth_routs.py            # Auth endpoints
+│   ├── companies_routs.py       # Companies endpoints
 │   ├── tally_routes.py          # Tally endpoints
+│   ├── settings_routs.py        # Setting endpoints
 │   ├── invoice_routes.py        # Invoice processing
 │   ├── mapping_routes.py        # Mapping suggestions
 │   └── voucher_routes.py        # XML generation
@@ -118,7 +121,9 @@ fastapi_app/
 │   ├── tally_connector.py       # Tally XML communication
 │   ├── invoice_processor.py     # JWT decoding
 │   ├── mapping_service.py       # Smart suggestions
-│   └── voucher_builder.py       # Purchase XML builder
+│   └── tally_encoder.py         # Purchase XML builder
+|   └── otp_service.py           # Otp Generator
+|   └── excel_download_service.py# Download Excel Of Invoices
 └── schemas/
     └── invoice_schemas.py       # Pydantic models
 ```
@@ -132,14 +137,7 @@ fastapi_app/
 ```bash
 git clone https://github.com/Nidhi-Zalavadiya/Tally_Automation.git
 cd Tally_Automation
-
-python -m venv venv
-# Windows:
-venv\Scripts\activate
-# Mac/Linux:
-source venv/bin/activate
-
-pip install -r requirements.txt
+backend\myenv\Scripts\activate
 ```
 
 ### 2. Configure environment
@@ -175,32 +173,62 @@ API docs available at: **http://localhost:8000/docs**
 
 ## API Endpoints
 
-### Tally Operations
-```
-POST   /api/tally/connect          Connect to Tally, fetch ledgers/stock items/units
-GET    /api/tally/item/{name}      Get item details (rate, MRP, unit)
-POST   /api/tally/send-voucher     Send XML voucher to Tally
-```
-
-### Invoice Processing
-```
-POST   /api/invoices/parse         Parse uploaded IRN JSON file
-POST   /api/invoices/parse-text    Parse invoice JSON from request body
+### Authentication (`/api/auth`)
+```text
+POST   /api/auth/signup              Create account and send email OTP
+POST   /api/auth/login               Verify credentials and get JWT token
+GET    /api/auth/me                  Get current authenticated user session
+GET    /api/auth/profile             Get full user profile details (dates, verification status)
+PUT    /api/auth/profile             Update profile information (name, phone)
+POST   /api/auth/verify-otp          Verify 6-digit OTP code from email
+POST   /api/auth/resend-otp          Resend verification email OTP
 ```
 
-### Mapping & Suggestions
-```
-POST   /api/mappings/suggest       Get mapping suggestion for a product
-POST   /api/mappings/save          Save a new mapping
-GET    /api/mappings/company/{id}  Get all mappings for a company
-POST   /api/mappings/bulk-suggest  Bulk suggestions for multiple products
+### Companies (`/api/companies`)
+```text
+GET    /api/companies/               List all connected companies for the current user
+POST   /api/companies/connect        Connect to Tally, fetch masters, and save company to DB
+POST   /api/companies/{id}/refresh   Refresh masters (ledgers/items/units) without full reconnect
+DELETE /api/companies/{id}           Disconnect and remove company from DB
 ```
 
-### Voucher Generation
+### Tally Operations (`/api/tally`)
+```text
+POST   /api/tally/connect            Connect to Tally and fetch all masters
+GET    /api/tally/item/{name}        Get detailed information for a specific stock item
+POST   /api/tally/send-voucher       Send voucher XML directly to Tally for import
 ```
-POST   /api/vouchers/generate           Generate Tally Purchase XML
-POST   /api/vouchers/generate-and-send  Generate and push to Tally immediately
-POST   /api/vouchers/download           Generate and download XML file
+
+### Invoice Processing (`/api/invoices`)
+```text
+POST   /api/invoices/parse           Parse uploaded Government e-Invoice IRN/JWT JSON file
+POST   /api/invoices/parse-text      Parse invoice JSON directly from the request body
+```
+
+### Mapping & Suggestions (`/api/mappings`)
+```text
+POST   /api/mappings/suggest         Get smart mapping suggestion for a single product
+POST   /api/mappings/save            Save a new product mapping to the database
+GET    /api/mappings/company/{id}    Get all saved mappings for a specific company
+POST   /api/mappings/bulk-suggest    Get bulk suggestions for multiple products at once
+```
+
+### Settings & State (`/api/settings`)
+```text
+GET    /api/settings/                Load user's saved ledger configurations and voucher types
+POST   /api/settings/save            Save ledger config, rate-wise ledgers, and voucher types
+GET    /api/settings/invoices        Load user's temporarily saved invoice list session
+POST   /api/settings/invoices        Save current invoice list and mapping status
+DELETE /api/settings/invoices        Clear saved invoices (Start Fresh)
+```
+
+### Voucher Generation (`/api/vouchers`)
+```text
+POST   /api/vouchers/generate          Generate Tally Purchase XML
+POST   /api/vouchers/generate-and-send Generate and push directly to Tally
+POST   /api/vouchers/download          Generate and download a single XML file
+POST   /api/vouchers/download-bulk     Generate and download a bulk XML file for multiple invoices
+POST   /api/vouchers/download_excel    Download parsed invoices report in Excel format
 ```
 
 ---
