@@ -10,8 +10,7 @@ ROUTES:
   GET  /api/auth/profile     → full profile (phone, dates, verification)
   PUT  /api/auth/profile     → update first_name, last_name, phone
 
-PHONE: collected at signup, stored in user_userprofile, NOT verified
-       at signup time. User can update/view it from the Profile sidebar page.
+
 """
 
 import os
