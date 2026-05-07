@@ -93,3 +93,4 @@ logs/
 .cache/
 
 .bin/
+*.bin/
