@@ -22,26 +22,41 @@ Accounting teams spend hours manually downloading e-Invoices from the Government
 ---
 
 ## Screenshots
-![Auth](<img width="789" height="558<img width="789" height="558" alt="Screenshot 2026-04-04 123159" src="https://github.com/user-attachments/assets/461e5aa5-4181-42e9-a5ff-6691a0acea65" />
-" alt="image" src="https://github.com/user-attachments/assets/9f90ecfc-eaa0-4b28-886d-4ef99c471daf" />
-)
 
-> Email OTP authentication
+![Auth](Screenshots/LOG%20IN.png)
 
-> Upload and decode multiple invoices at once
+### 🔐 Email OTP Authentication
+![Email Verification](Screenshots/EMAIL%20VARIFICATION.png)
 
-![Invoice List](screenshots/invoice-list.png)
+### 📊 Dashboard
+![Dashboard](Screenshots/DASHBOARD.png)
 
-> Smart item mapping with party, ledger, and GST configuration
+### 📂 Browse & Upload JSON File
+![Browse JSON](Screenshots/BROWES%20JSON%20ENCODED%20FILE.png)
 
-![Item Mapping](screenshots/item-mapping.png)
+### 🧾 Invoice Decode & Load
+![Invoice Decode](Screenshots/INVOICE%20DECODE%20+%20LOAD.png)
 
-> Company connection via Tally Prime
+### 📋 Invoices With Status
+![Invoices With Status](Screenshots/INVOICES%20WITH%20STATUS.png)
 
-![Companies](screenshots/companies.png)
+### 🔗 GST Ledger Mapping
+![GST Mapping](Screenshots/GST%20LEDGER%20MAPPING%20WITH%20TALLY%20LEDGER.png)
 
+### ✅ Bulk Selection & Mapping
+![Bulk Mapping](Screenshots/BULK%20SELECTION%20AND%20MAPPING%20WITH%20TALLY.png)
 
+### 🏢 Connect to Tally Company
+![Connect Tally](Screenshots/CONNECT%20TO%20TALLY%20COMPANY.png)
 
+### 🏢 Connected Company List
+![Company List](Screenshots/CONNECTED%20COMPANY%20LIST%20WITH%20STATUS.png)
+
+### 🚀 Directly Push Into Tally
+![Push to Tally](Screenshots/DIRECTLY%20PUSH%20INTO%20TALLY.png)
+
+### 📥 Downloaded File
+![Downloaded File](Screenshots/DOWNLOADED%20FILE.png)
 ---
 
 ## Features
