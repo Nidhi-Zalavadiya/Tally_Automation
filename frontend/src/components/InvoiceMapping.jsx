@@ -313,7 +313,7 @@ const InvoiceMapping = () => {
             <>
               <div style={{ fontSize: 48 }}>📤</div>
               <h3>Drop JWT-signed JSON here</h3>
-              <p>Array of {'{'}SignedInvoice:"eyJ…"{'}'} objects</p>
+              {/*<p>Array of {'{'}SignedInvoice:"eyJ…"{'}'} objects</p> */}
               <button className="btn btn-primary"
                 onClick={(e) => { e.stopPropagation(); fileRef.current?.click(); }}>
                 Browse File
