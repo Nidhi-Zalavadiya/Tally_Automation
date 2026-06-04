@@ -180,8 +180,6 @@ DB_PASSWORD=your_db_password
 TALLY_URL=http://localhost:9000
 ```
 
-> ⚠️ Never commit your `.env` file. It is already in `.gitignore`.
-
 ### 3. Start Tally Prime
 
 1. Open Tally Prime with your company
